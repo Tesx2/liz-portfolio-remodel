@@ -6,17 +6,17 @@ export interface ProjectAsset {
   id: string;
   type: AssetType;
   key: string;
-  url: string;
   thumbKey?: string | null;
-  thumbUrl?: string | null;
   posterKey?: string | null;
-  posterUrl?: string | null;
   previewKey?: string | null;
+  url?: string;
+  thumbUrl?: string | null;
+  posterUrl?: string | null;
   previewUrl?: string | null;
-  width?: number;
-  height?: number;
+  width?: number | null;
+  height?: number | null;
   duration?: number | null;
-  size?: number;
+  size?: number | null;
   alt: string;
   caption?: string;
   sortOrder: number;
@@ -39,7 +39,6 @@ export interface Project {
   assets: ProjectAsset[];
   createdAt: string;
   updatedAt: string;
-  // Case study specific details
   challenge?: string;
   solution?: string;
   deliverables?: string[];
@@ -58,13 +57,15 @@ export interface ProjectIndexItem {
   featured: boolean;
   sortOrder: number;
   coverAsset?: {
-    url: string;
+    key: string;
+    thumbKey?: string | null;
+    url?: string;
     thumbUrl?: string;
-    width?: number;
-    height?: number;
+    width?: number | null;
+    height?: number | null;
     alt: string;
     type: AssetType;
-  };
+  } | null;
   updatedAt: string;
 }
 
@@ -87,12 +88,6 @@ export interface ServiceItem {
   timeline: string;
 }
 
-export interface R2Config {
-  accountId: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  bucket: string;
+export interface PublicMediaSettings {
   publicMediaBaseUrl: string;
-  buildHookUrl?: string;
-  isConfigured: boolean;
 }

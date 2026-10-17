@@ -1,16 +1,18 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Project, ProjectAsset, ProjectCategory } from '../../types';
 import {
-  Project,
-  ProjectAsset,
-  ProjectCategory,
-  R2Config,
-} from '../../types';
-import {
-  saveAllProjects,
-  buildIndexJson,
-  generateImageThumbnail,
-  extractVideoPoster,
-  saveR2Config,
+  fetchAdminProjectsList,
+  saveProjectToR2,
+  deleteProjectFromR2,
+  deleteAssetFromR2,
+  triggerProductionBuild,
+  uploadFileDirectToR2,
+  uploadFileMultipartToR2,
+  generateImageThumbnailBlob,
+  extractVideoPosterBlob,
+  getMediaAssetUrl,
+  getPublicMediaBaseUrl,
+  savePublicMediaBaseUrl,
 } from '../../services/storageService';
 import {
   Plus,
@@ -23,48 +25,50 @@ import {
   X,
   Eye,
   LogOut,
-  FolderOpen,
   Image as ImageIcon,
-  Video,
-  FileText,
-  Sliders,
+  RotateCcw,
   Sparkles,
-  ArrowUp,
-  ArrowDown,
-  Layers,
-  HardDrive,
   Download,
-  Send,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react';
 
+interface FileUploadTask {
+  id: string;
+  file: File;
+  fileName: string;
+  status: 'pending' | 'uploading' | 'completed' | 'failed';
+  progress: number;
+  errorMessage?: string;
+  asset?: ProjectAsset;
+}
+
 interface AdminDashboardProps {
-  projects: Project[];
-  onUpdateProjects: (projects: Project[]) => void;
-  r2Config: R2Config;
-  onUpdateR2Config: (config: R2Config) => void;
   onLogout: () => void;
   onClose: () => void;
-  onPreviewProject: (project: Project) => void;
+  onPreviewProject: (slug: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  projects,
-  onUpdateProjects,
-  r2Config,
-  onUpdateR2Config,
   onLogout,
   onClose,
   onPreviewProject,
 }) => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'projects' | 'editor' | 'settings'>('projects');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // R2 settings state
-  const [tempR2Config, setTempR2Config] = useState<R2Config>(r2Config);
+  // Upload tasks tracking
+  const [uploadTasks, setUploadTasks] = useState<FileUploadTask[]>([]);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Non-secret settings
+  const [publicMediaUrlInput, setPublicMediaUrlInput] = useState<string>(getPublicMediaBaseUrl());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +76,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  const loadProjects = async () => {
+    setIsLoadingProjects(true);
+    try {
+      const data = await fetchAdminProjectsList();
+      setProjects(data);
+    } catch (err: any) {
+      showToast(err.message || 'Failed loading projects from Cloudflare R2');
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const hasActiveUploads = uploadTasks.some(
+    (t) => t.status === 'uploading' || t.status === 'pending'
+  );
 
   const handleCreateNewProject = () => {
     const newProj: Project = {
@@ -95,206 +119,319 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       updatedAt: new Date().toISOString(),
     };
     setEditingProject(newProj);
+    setUploadTasks([]);
+    setSaveError(null);
     setActiveTab('editor');
   };
 
   const handleEditProject = (proj: Project) => {
     setEditingProject({ ...proj });
+    setUploadTasks([]);
+    setSaveError(null);
     setActiveTab('editor');
   };
 
-  const handleDeleteProject = (projId: string) => {
-    if (confirm('Are you sure you want to delete this project? Associated files and metadata will be removed.')) {
-      const updated = projects.filter((p) => p.id !== projId);
-      onUpdateProjects(updated);
-      saveAllProjects(updated);
-      showToast('Project deleted successfully.');
-      if (editingProject?.id === projId) {
+  const handleDeleteProject = async (slug: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete project "${slug}"? This permanently removes all associated objects from Cloudflare R2.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteProjectFromR2(slug);
+      showToast(`Project "${slug}" and R2 media objects deleted.`);
+      loadProjects();
+      if (editingProject?.slug === slug) {
         setEditingProject(null);
         setActiveTab('projects');
       }
+    } catch (err: any) {
+      showToast(err.message || 'Failed deleting project from R2');
     }
   };
 
-  const handleSaveEditingProject = (e: React.FormEvent) => {
+  const handleSaveEditingProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProject) return;
 
-    // Set cover asset if none selected
+    if (hasActiveUploads) {
+      alert('Please wait for all media file uploads to finish before saving the project.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+
     let updatedProj = { ...editingProject, updatedAt: new Date().toISOString() };
     if (!updatedProj.coverAssetId && updatedProj.assets.length > 0) {
       updatedProj.coverAssetId = updatedProj.assets[0].id;
     }
 
-    const existingIndex = projects.findIndex((p) => p.id === updatedProj.id);
-    let updatedList: Project[];
-    if (existingIndex >= 0) {
-      updatedList = [...projects];
-      updatedList[existingIndex] = updatedProj;
-    } else {
-      updatedList = [...projects, updatedProj];
+    try {
+      const res = await saveProjectToR2(updatedProj);
+      showToast(`Project "${updatedProj.title}" saved to Cloudflare R2.`);
+      setIsSaving(false);
+      setEditingProject(res.project);
+      loadProjects();
+      setActiveTab('projects');
+    } catch (err: any) {
+      setIsSaving(false);
+      setSaveError(err.message || 'Failed saving project to R2');
+      showToast('Save failed. Project form data has been preserved.');
     }
+  };
 
-    onUpdateProjects(updatedList);
-    saveAllProjects(updatedList);
+  const processSingleFile = async (
+    file: File,
+    taskId: string,
+    currentProj: Project
+  ): Promise<ProjectAsset | null> => {
+    const isVideo = file.type.startsWith('video/');
+    const isPdf = file.type === 'application/pdf';
+    const isSvg = file.type.includes('svg');
+    const isGif = file.type.includes('gif');
 
-    // If Netlify function is active, sync directly to Cloudflare R2
-    const token = localStorage.getItem('liz_kendi_jwt_token');
-    if (token) {
-      fetch('/.netlify/functions/save-project', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(updatedProj),
-      })
-        .then((res) => {
-          if (res.ok) {
-            showToast(`Project "${updatedProj.title}" saved and synced to Cloudflare R2!`);
-          }
-        })
-        .catch((err) => console.warn('R2 sync notice:', err));
+    let assetType: ProjectAsset['type'] = 'image';
+    if (isVideo) assetType = 'video';
+    else if (isPdf) assetType = 'pdf';
+    else if (isSvg) assetType = 'svg';
+    else if (isGif) assetType = 'gif';
+
+    const assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const updateProgress = (pct: number) => {
+      setUploadTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, progress: pct } : t))
+      );
+    };
+
+    try {
+      let width: number | null = null;
+      let height: number | null = null;
+      let duration: number | null = null;
+      let thumbKey: string | null = null;
+      let posterKey: string | null = null;
+      let previewUrl: string = '';
+
+      // Generate and upload WebP thumbnail for images
+      if (assetType === 'image' || isGif) {
+        try {
+          const thumbRes = await generateImageThumbnailBlob(file);
+          width = thumbRes.width;
+          height = thumbRes.height;
+          previewUrl = thumbRes.previewUrl;
+
+          const thumbUpload = await uploadFileDirectToR2(
+            thumbRes.blob,
+            {
+              projectSlug: currentProj.slug,
+              assetId,
+              fileName: 'thumb.webp',
+              contentType: 'image/webp',
+              variant: 'thumb',
+            }
+          );
+          thumbKey = thumbUpload.key;
+        } catch (thumbErr) {
+          console.warn('Thumbnail generation warning:', thumbErr);
+        }
+      }
+
+      // Generate poster frame for videos
+      if (isVideo) {
+        try {
+          const posterRes = await extractVideoPosterBlob(file);
+          width = posterRes.width;
+          height = posterRes.height;
+          duration = posterRes.duration;
+          previewUrl = posterRes.previewUrl;
+
+          const posterUpload = await uploadFileDirectToR2(
+            posterRes.blob,
+            {
+              projectSlug: currentProj.slug,
+              assetId,
+              fileName: 'poster.webp',
+              contentType: 'image/webp',
+              variant: 'poster',
+            }
+          );
+          posterKey = posterUpload.key;
+          thumbKey = posterKey;
+        } catch (posterErr) {
+          console.warn('Poster extraction warning:', posterErr);
+        }
+      }
+
+      // Upload original file: Single-part (<= 50MB) or Multipart (> 50MB up to 2GB)
+      const FIFTY_MB = 50 * 1024 * 1024;
+      let uploadResultKey = '';
+
+      if (file.size <= FIFTY_MB) {
+        const uploadRes = await uploadFileDirectToR2(
+          file,
+          {
+            projectSlug: currentProj.slug,
+            assetId,
+            fileName: file.name,
+            contentType: file.type || 'application/octet-stream',
+            variant: 'original',
+          },
+          updateProgress
+        );
+        uploadResultKey = uploadRes.key;
+      } else {
+        const uploadRes = await uploadFileMultipartToR2(
+          file,
+          {
+            projectSlug: currentProj.slug,
+            assetId,
+            fileName: file.name,
+            contentType: file.type || 'application/octet-stream',
+          },
+          updateProgress
+        );
+        uploadResultKey = uploadRes.key;
+      }
+
+      const completedAsset: ProjectAsset = {
+        id: assetId,
+        type: assetType,
+        key: uploadResultKey,
+        thumbKey: thumbKey || uploadResultKey,
+        posterKey: posterKey,
+        previewUrl: previewUrl || URL.createObjectURL(file), // temporary local preview
+        width,
+        height,
+        duration,
+        size: file.size,
+        alt: `${currentProj.title} visual asset`,
+        caption: file.name,
+        sortOrder: (currentProj.assets?.length || 0) + 1,
+      };
+
+      setUploadTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, status: 'completed', progress: 100, asset: completedAsset }
+            : t
+        )
+      );
+
+      return completedAsset;
+    } catch (err: any) {
+      setUploadTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, status: 'failed', errorMessage: err.message || 'Upload failed' }
+            : t
+        )
+      );
+      return null;
     }
-
-    showToast(`Project "${updatedProj.title}" saved successfully!`);
-    setActiveTab('projects');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !editingProject) return;
 
-    setUploadProgress(10);
-    const newAssets: ProjectAsset[] = [];
+    const newTasks: FileUploadTask[] = Array.from(files).map((file, idx) => ({
+      id: `task-${Date.now()}-${idx}`,
+      file,
+      fileName: file.name,
+      status: 'pending',
+      progress: 0,
+    }));
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setUploadProgress(Math.round(((i + 1) / files.length) * 80));
+    setUploadTasks((prev) => [...prev, ...newTasks]);
 
-      const isVideo = file.type.startsWith('video/');
-      const isImage = file.type.startsWith('image/');
-      const isPdf = file.type === 'application/pdf';
+    // Process files sequentially or in small queue
+    for (const task of newTasks) {
+      setUploadTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: 'uploading' } : t))
+      );
 
-      let assetType: ProjectAsset['type'] = 'image';
-      if (isVideo) assetType = 'video';
-      else if (isPdf) assetType = 'pdf';
-      else if (file.type.includes('svg')) assetType = 'svg';
-      else if (file.type.includes('gif')) assetType = 'gif';
+      const createdAsset = await processSingleFile(task.file, task.id, editingProject);
+      if (createdAsset) {
+        setEditingProject((prevProj) => {
+          if (!prevProj) return prevProj;
+          const updatedAssets = [...(prevProj.assets || []), createdAsset];
+          return {
+            ...prevProj,
+            assets: updatedAssets,
+            coverAssetId: prevProj.coverAssetId || createdAsset.id,
+          };
+        });
+      }
+    }
 
-      const assetId = `asset-${Date.now()}-${i}`;
-      let thumbUrl: string | undefined = undefined;
-      let posterUrl: string | undefined = undefined;
-      let width = 1920;
-      let height = 1080;
-      let duration: number | null = null;
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRetryUpload = async (task: FileUploadTask) => {
+    if (!editingProject) return;
+    setUploadTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id
+          ? { ...t, status: 'uploading', progress: 0, errorMessage: undefined }
+          : t
+      )
+    );
+
+    const createdAsset = await processSingleFile(task.file, task.id, editingProject);
+    if (createdAsset) {
+      setEditingProject((prevProj) => {
+        if (!prevProj) return prevProj;
+        return {
+          ...prevProj,
+          assets: [...(prevProj.assets || []), createdAsset],
+          coverAssetId: prevProj.coverAssetId || createdAsset.id,
+        };
+      });
+    }
+  };
+
+  const handleRemoveAsset = async (asset: ProjectAsset) => {
+    if (!editingProject) return;
+    if (confirm('Delete this asset from R2?')) {
+      const keysToDelete = [asset.key];
+      if (asset.thumbKey && asset.thumbKey !== asset.key) keysToDelete.push(asset.thumbKey);
+      if (asset.posterKey) keysToDelete.push(asset.posterKey);
 
       try {
-        if (isImage) {
-          const thumbResult = await generateImageThumbnail(file);
-          thumbUrl = thumbResult.thumbDataUrl;
-          width = thumbResult.width;
-          height = thumbResult.height;
-        } else if (isVideo) {
-          const videoResult = await extractVideoPoster(file);
-          posterUrl = videoResult.posterDataUrl;
-          thumbUrl = videoResult.posterDataUrl;
-          width = videoResult.width;
-          height = videoResult.height;
-          duration = videoResult.duration;
+        await deleteAssetFromR2(keysToDelete);
+        const updated = editingProject.assets.filter((a) => a.id !== asset.id);
+        let coverId = editingProject.coverAssetId;
+        if (coverId === asset.id) {
+          coverId = updated[0]?.id || '';
         }
-      } catch (err) {
-        console.warn('Could not extract preview frame:', err);
+        setEditingProject({
+          ...editingProject,
+          assets: updated,
+          coverAssetId: coverId,
+        });
+        showToast('Asset removed from project and R2.');
+      } catch (err: any) {
+        showToast(err.message || 'Failed deleting asset from R2');
       }
-
-      // Generate object URL for immediate high-res preview
-      const objectUrl = URL.createObjectURL(file);
-
-      const asset: ProjectAsset = {
-        id: assetId,
-        type: assetType,
-        key: `media/${editingProject.slug}/${assetId}/${file.name}`,
-        url: objectUrl,
-        thumbUrl: thumbUrl || objectUrl,
-        posterUrl: posterUrl,
-        width,
-        height,
-        duration,
-        size: file.size,
-        alt: `${editingProject.title} media asset`,
-        caption: file.name,
-        sortOrder: editingProject.assets.length + i + 1,
-      };
-
-      newAssets.push(asset);
-    }
-
-    setUploadProgress(100);
-    setTimeout(() => setUploadProgress(null), 500);
-
-    const updatedAssets = [...editingProject.assets, ...newAssets];
-    setEditingProject({
-      ...editingProject,
-      assets: updatedAssets,
-      coverAssetId: editingProject.coverAssetId || (newAssets[0] ? newAssets[0].id : ''),
-    });
-
-    showToast(`Uploaded ${newAssets.length} asset(s) with browser-generated WebP thumbnails.`);
-  };
-
-  const handleRemoveAsset = (assetId: string) => {
-    if (!editingProject) return;
-    const updated = editingProject.assets.filter((a) => a.id !== assetId);
-    let coverId = editingProject.coverAssetId;
-    if (coverId === assetId) {
-      coverId = updated[0]?.id || '';
-    }
-    setEditingProject({
-      ...editingProject,
-      assets: updated,
-      coverAssetId: coverId,
-    });
-  };
-
-  const handleSetCover = (assetId: string) => {
-    if (!editingProject) return;
-    setEditingProject({
-      ...editingProject,
-      coverAssetId: assetId,
-    });
-    showToast('Cover asset updated.');
-  };
-
-  const handlePublishSite = () => {
-    const indexData = buildIndexJson(projects);
-    const blob = new Blob([JSON.stringify(indexData, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'index.json';
-    link.click();
-    URL.revokeObjectURL(url);
-
-    if (tempR2Config.buildHookUrl) {
-      fetch(tempR2Config.buildHookUrl, { method: 'POST' })
-        .then(() => showToast('Triggered Netlify build hook successfully!'))
-        .catch((e) => showToast(`Build hook triggered: ${e.message}`));
-    } else {
-      showToast('Rebuilt content/index.json and initiated export download!');
     }
   };
 
-  const handleSaveR2Settings = (e: React.FormEvent) => {
+  const handlePublishSite = async () => {
+    try {
+      await triggerProductionBuild();
+      showToast('Triggered Netlify production deploy via build hook!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed triggering publish build hook');
+    }
+  };
+
+  const handleSavePublicSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    const configToSave = {
-      ...tempR2Config,
-      isConfigured: !!(tempR2Config.accountId && tempR2Config.accessKeyId),
-    };
-    onUpdateR2Config(configToSave);
-    saveR2Config(configToSave);
-    showToast('Cloudflare R2 and storage parameters saved successfully.');
+    savePublicMediaBaseUrl(publicMediaUrlInput);
+    showToast('Public Media CDN Base URL saved.');
   };
 
   const filteredProjects = projects.filter((p) => {
@@ -325,7 +462,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div>
             <h1 className="font-display text-base font-bold">Liz Kendi Portfolio Administration</h1>
             <p className="text-[11px] font-mono text-white/50">
-              R2 Storage Pipeline · Content CMS & Media Ingestion
+              Cloudflare R2 Direct Pipeline · Cookie-Authenticated CMS
             </p>
           </div>
         </div>
@@ -365,16 +502,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              R2 / Cloud Config
+              Media CDN Settings
             </button>
           </div>
 
           <button
             onClick={handlePublishSite}
+            title="Triggers Netlify Build Hook for production pre-render"
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Publish / Export index.json</span>
+            <span>Publish Site</span>
           </button>
 
           <button
@@ -400,16 +538,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="font-display text-2xl font-bold">Portfolio Projects</h2>
+                <h2 className="font-display text-2xl font-bold">R2 Portfolio Projects</h2>
                 <p className="text-xs text-white/50 font-mono mt-1">
-                  Manage drafts, published status, and media ordering for the live site.
+                  Source of truth stored in Cloudflare R2: <code className="text-[#ca57bb]">content/projects/*.json</code>
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Filter by title..."
+                  placeholder="Filter by title or client..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="px-3 py-2 bg-[#14101c] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#8a307f]"
@@ -424,99 +562,118 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* Projects Table */}
-            <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#120f18]">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#191522] text-white/50 border-b border-white/10 uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Cover</th>
-                    <th className="py-3 px-4">Title & Client</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Assets</th>
-                    <th className="py-3 px-4">Updated</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.06]">
-                  {filteredProjects.map((p) => {
-                    const cover = p.assets.find((a) => a.id === p.coverAssetId) || p.assets[0];
-                    return (
-                      <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="w-12 h-12 rounded-lg bg-[#1e1929] overflow-hidden border border-white/10">
-                            {cover ? (
-                              <img
-                                src={cover.thumbUrl || cover.url}
-                                alt={cover.alt}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/20">
-                                <ImageIcon className="w-4 h-4" />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-white font-sans font-semibold text-sm">
-                            {p.title}
-                          </div>
-                          <div className="text-white/50 text-[11px]">{p.client} · {p.year}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-[#ca57bb] uppercase text-[11px]">
-                            {p.category}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                              p.status === 'published'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}
-                          >
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-white/70">
-                          {p.assets.length} file{p.assets.length === 1 ? '' : 's'}
-                        </td>
-                        <td className="py-3 px-4 text-white/40 text-[11px]">
-                          {new Date(p.updatedAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => onPreviewProject(p)}
-                              title="Live Preview"
-                              className="p-1.5 rounded bg-white/[0.05] hover:bg-white/10 text-white/70 hover:text-white"
+            {isLoadingProjects ? (
+              <div className="py-20 text-center text-white/50 flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-[#ca57bb]" />
+                <span className="text-xs font-mono">Loading projects directly from Cloudflare R2...</span>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="py-20 text-center rounded-xl border border-white/10 bg-[#120f18] space-y-3">
+                <p className="text-sm text-white/70">No projects currently found in Cloudflare R2 bucket.</p>
+                <button
+                  onClick={handleCreateNewProject}
+                  className="px-4 py-2 bg-[#8a307f] rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Create First Project
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#120f18]">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-[#191522] text-white/50 border-b border-white/10 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Cover</th>
+                      <th className="py-3 px-4">Title & Client</th>
+                      <th className="py-3 px-4">Category</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Assets</th>
+                      <th className="py-3 px-4">Updated</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.06]">
+                    {filteredProjects.map((p) => {
+                      const cover = p.assets.find((a) => a.id === p.coverAssetId) || p.assets[0];
+                      const coverUrl = cover
+                        ? getMediaAssetUrl(cover.thumbKey || cover.key)
+                        : '';
+                      return (
+                        <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="w-12 h-12 rounded-lg bg-[#1e1929] overflow-hidden border border-white/10">
+                              {coverUrl ? (
+                                <img
+                                  src={coverUrl}
+                                  alt={cover?.alt || p.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white/20">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-white font-sans font-semibold text-sm">
+                              {p.title}
+                            </div>
+                            <div className="text-white/50 text-[11px]">{p.client} · {p.year}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-[#ca57bb] uppercase text-[11px]">
+                              {p.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                p.status === 'published'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}
                             >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleEditProject(p)}
-                              title="Edit Project"
-                              className="p-1.5 rounded bg-[#8a307f]/20 hover:bg-[#8a307f]/40 text-[#ca57bb]"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteProject(p.id)}
-                              title="Delete Project"
-                              className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-white/70">
+                            {p.assets.length} file{p.assets.length === 1 ? '' : 's'}
+                          </td>
+                          <td className="py-3 px-4 text-white/40 text-[11px]">
+                            {new Date(p.updatedAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => onPreviewProject(p.slug)}
+                                title="Live Preview"
+                                className="p-1.5 rounded bg-white/[0.05] hover:bg-white/10 text-white/70 hover:text-white"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleEditProject(p)}
+                                title="Edit Project"
+                                className="p-1.5 rounded bg-[#8a307f]/20 hover:bg-[#8a307f]/40 text-[#ca57bb]"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProject(p.slug)}
+                                title="Delete Project"
+                                className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -529,14 +686,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   Editing: {editingProject.title}
                 </h2>
                 <p className="text-xs font-mono text-white/50">
-                  Slug: <span className="text-[#ca57bb]">{editingProject.slug}</span>
+                  Slug: <span className="text-[#ca57bb]">{editingProject.slug}</span> · Key:{' '}
+                  <code>content/projects/{editingProject.slug}.json</code>
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => onPreviewProject(editingProject)}
+                  onClick={() => onPreviewProject(editingProject.slug)}
                   className="flex items-center gap-1.5 px-3 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-lg text-xs font-medium cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 text-[#ca57bb]" />
@@ -544,13 +702,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-2 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-lg text-xs font-semibold shadow-lg shadow-[#8a307f]/25 cursor-pointer"
+                  disabled={hasActiveUploads || isSaving}
+                  className={`flex items-center gap-2 px-5 py-2 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-lg text-xs font-semibold shadow-lg shadow-[#8a307f]/25 cursor-pointer ${
+                    hasActiveUploads || isSaving ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Save Project</span>
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>
+                    {hasActiveUploads
+                      ? 'Uploads In Progress...'
+                      : isSaving
+                      ? 'Saving to R2...'
+                      : 'Save Project'}
+                  </span>
                 </button>
               </div>
             </div>
+
+            {saveError && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-xs text-red-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>Error saving project: {saveError}. Form changes have been kept.</span>
+              </div>
+            )}
 
             {/* Core Fields Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -675,7 +853,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       className="w-full px-3 py-2 bg-[#0b0811] border border-white/10 rounded-lg text-xs text-white focus:outline-none focus:border-[#8a307f]"
                     >
-                      <option value="draft">Draft (Admin Only)</option>
+                      <option value="draft">Draft (Excluded from index.json)</option>
                       <option value="published">Published (Live On Site)</option>
                     </select>
                   </div>
@@ -732,7 +910,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* Challenge & Solution */}
                 <div className="p-5 rounded-2xl bg-[#130f1a] border border-white/10 space-y-3">
                   <h3 className="text-xs font-mono uppercase text-white/50 tracking-wider">
                     Creative Brief Details
@@ -771,9 +948,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="pt-6 border-t border-white/10 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-display text-xl font-bold">Project Media Assets</h3>
+                  <h3 className="font-display text-xl font-bold">R2 Direct Media Pipeline</h3>
                   <p className="text-xs font-mono text-white/50 mt-0.5">
-                    Drag and drop images, MP4 videos, SVGs, or PDFs. Client-side canvas thumbnail generator automatically produces WebP thumbnails and video poster frames.
+                    Browser uploads directly to Cloudflare R2 via presigned URLs. Files &gt;50 MB use 10 MB multipart chunks (up to 2 GB).
                   </p>
                 </div>
 
@@ -783,7 +960,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                     multiple
-                    accept="image/*,video/mp4,video/webm,application/pdf"
+                    accept="image/*,video/mp4,video/webm,video/quicktime,application/pdf"
                     className="hidden"
                   />
                   <button
@@ -792,31 +969,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="flex items-center gap-2 px-4 py-2 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-md"
                   >
                     <UploadCloud className="w-4 h-4" />
-                    <span>Upload Media File(s)</span>
+                    <span>Upload to R2</span>
                   </button>
                 </div>
               </div>
 
-              {uploadProgress !== null && (
-                <div className="p-4 rounded-xl bg-[#16121f] border border-[#8a307f]/40 space-y-2">
-                  <div className="flex justify-between text-xs font-mono">
-                    <span>Processing Media & Generating WebP Previews...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#8a307f] transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
+              {/* Per-file Upload Tasks with Progress & Retry */}
+              {uploadTasks.length > 0 && (
+                <div className="p-4 rounded-xl bg-[#16121f] border border-white/10 space-y-3">
+                  <span className="text-xs font-mono uppercase text-white/50 tracking-wider">
+                    Upload Activity
+                  </span>
+                  <div className="space-y-2">
+                    {uploadTasks.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-2.5 rounded-lg bg-black/40 border border-white/5 text-xs font-mono flex items-center justify-between gap-4"
+                      >
+                        <div className="truncate max-w-xs sm:max-w-md">
+                          <span className="text-white block truncate">{t.fileName}</span>
+                          {t.errorMessage && (
+                            <span className="text-red-400 text-[11px] block">{t.errorMessage}</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          {t.status === 'uploading' && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#ca57bb]">{t.progress}%</span>
+                              <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-[#8a307f] transition-all duration-200"
+                                  style={{ width: `${t.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {t.status === 'completed' && (
+                            <span className="text-emerald-400 flex items-center gap-1">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Uploaded to R2</span>
+                            </span>
+                          )}
+                          {t.status === 'failed' && (
+                            <button
+                              type="button"
+                              onClick={() => handleRetryUpload(t)}
+                              className="flex items-center gap-1 text-amber-300 hover:text-amber-200 bg-amber-500/20 px-2 py-0.5 rounded cursor-pointer"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Retry</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Assets list */}
-              {editingProject.assets.length > 0 ? (
+              {/* Stored Assets (rendered via <img> only) */}
+              {editingProject.assets && editingProject.assets.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {editingProject.assets.map((asset, idx) => {
                     const isCover = editingProject.coverAssetId === asset.id;
+                    const previewSrc =
+                      asset.previewUrl || getMediaAssetUrl(asset.thumbKey || asset.key);
+
                     return (
                       <div
                         key={asset.id}
@@ -826,10 +1045,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             : 'border-white/10 hover:border-white/20'
                         }`}
                       >
+                        {/* Render ONLY through <img> tag (never inline SVG) */}
                         <div className="relative aspect-video rounded-xl overflow-hidden bg-[#0a080d] mb-3 border border-white/10">
                           <img
-                            src={asset.thumbUrl || asset.url}
-                            alt={asset.alt}
+                            src={previewSrc}
+                            alt={asset.alt || 'Asset'}
                             className="w-full h-full object-cover"
                           />
                           {isCover && (
@@ -843,6 +1063,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
 
                         <div className="space-y-2 text-xs">
+                          <div className="text-[11px] font-mono text-white/50 truncate">
+                            R2 Key: {asset.key}
+                          </div>
+
                           <div>
                             <label className="block text-[10px] font-mono text-white/50 uppercase">
                               Alt Text (Accessibility)
@@ -862,7 +1086,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div className="flex items-center justify-between pt-2 border-t border-white/10">
                             <button
                               type="button"
-                              onClick={() => handleSetCover(asset.id)}
+                              onClick={() =>
+                                setEditingProject({
+                                  ...editingProject,
+                                  coverAssetId: asset.id,
+                                })
+                              }
                               disabled={isCover}
                               className={`text-[11px] font-mono ${
                                 isCover
@@ -875,9 +1104,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                             <button
                               type="button"
-                              onClick={() => handleRemoveAsset(asset.id)}
+                              onClick={() => handleRemoveAsset(asset)}
                               className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
-                              title="Delete Asset"
+                              title="Delete Asset from R2"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -897,7 +1126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     No media assets uploaded yet for this project.
                   </p>
                   <p className="text-xs text-white/40 mt-1">
-                    Click to select JPG, PNG, WebP, MP4, or SVG files.
+                    Click to upload JPG, PNG, WebP, MP4, or SVG directly to Cloudflare R2.
                   </p>
                 </div>
               )}
@@ -905,71 +1134,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </form>
         )}
 
-        {/* ================= TAB 3: R2 / STORAGE SETTINGS ================= */}
+        {/* ================= TAB 3: NON-SECRET MEDIA CDN SETTINGS ================= */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-6">
             <div>
-              <h2 className="font-display text-2xl font-bold">
-                Cloudflare R2 & Netlify Configuration
-              </h2>
+              <h2 className="font-display text-2xl font-bold">Public Media CDN Configuration</h2>
               <p className="text-xs font-mono text-white/50 mt-1">
-                Configure your S3-compatible R2 storage parameters, media CDN base URL, and build triggers.
+                Configure your public media delivery domain. All S3/R2 access credentials reside securely on the server in Netlify environment variables.
               </p>
             </div>
 
-            <form onSubmit={handleSaveR2Settings} className="p-8 rounded-2xl bg-[#14101c] border border-white/10 space-y-5">
-              <div>
-                <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
-                  R2 Account ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 7f8a9b1c2d3e4f5a6b7c8d9e"
-                  value={tempR2Config.accountId}
-                  onChange={(e) => setTempR2Config({ ...tempR2Config, accountId: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
-                    R2 Access Key ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 9b1c2d3e4f5a..."
-                    value={tempR2Config.accessKeyId}
-                    onChange={(e) => setTempR2Config({ ...tempR2Config, accessKeyId: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
-                    R2 Bucket Name
-                  </label>
-                  <input
-                    type="text"
-                    value={tempR2Config.bucket}
-                    onChange={(e) => setTempR2Config({ ...tempR2Config, bucket: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
-                  R2 Secret Access Key
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••••••••••••••••••••••••••"
-                  value={tempR2Config.secretAccessKey}
-                  onChange={(e) => setTempR2Config({ ...tempR2Config, secretAccessKey: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
-                />
-              </div>
-
+            <form
+              onSubmit={handleSavePublicSettings}
+              className="p-8 rounded-2xl bg-[#14101c] border border-white/10 space-y-5"
+            >
               <div>
                 <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
                   Public Media Base URL (PUBLIC_MEDIA_BASE_URL)
@@ -977,38 +1155,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   placeholder="https://media.lizkendi.com"
-                  value={tempR2Config.publicMediaBaseUrl}
-                  onChange={(e) => setTempR2Config({ ...tempR2Config, publicMediaBaseUrl: e.target.value })}
+                  value={publicMediaUrlInput}
+                  onChange={(e) => setPublicMediaUrlInput(e.target.value)}
                   className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-mono text-white/70 mb-1.5 uppercase">
-                  Netlify Build Hook URL (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://api.netlify.com/build_hooks/..."
-                  value={tempR2Config.buildHookUrl || ''}
-                  onChange={(e) => setTempR2Config({ ...tempR2Config, buildHookUrl: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-[#8a307f]"
-                />
+                <p className="text-[11px] font-mono text-white/40 mt-1.5">
+                  The public CDN domain connected to your Cloudflare R2 bucket. Assets are fetched from{' '}
+                  <code className="text-[#ca57bb]">&lt;PUBLIC_MEDIA_BASE_URL&gt;/media/...</code>
+                </p>
               </div>
 
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                <span className="text-xs font-mono text-white/50">
-                  Storage Status:{' '}
-                  <span className={tempR2Config.isConfigured ? 'text-emerald-400' : 'text-amber-400'}>
-                    {tempR2Config.isConfigured ? 'Active (Connected)' : 'Local Storage Engine Ready'}
-                  </span>
+                <span className="text-xs font-mono text-emerald-400">
+                  R2 Credentials Server-Protected
                 </span>
 
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
                 >
-                  Save Storage Parameters
+                  Save Public Domain
                 </button>
               </div>
             </form>

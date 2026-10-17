@@ -7,8 +7,8 @@ export const handler = async (event) => {
 
   const auth = await verifyAdminSession(event);
   if (!auth.authorized) {
-    return errorResponse(auth.error || 'Unauthorized', 401);
+    return errorResponse(auth.error || 'Unauthorized', auth.status || 401);
   }
 
-  return jsonResponse({ authenticated: true, user: auth.user });
+  return jsonResponse({ authenticated: true });
 };

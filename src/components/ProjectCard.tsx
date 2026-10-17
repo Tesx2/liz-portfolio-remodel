@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { ArrowUpRight, Play } from 'lucide-react';
-import { Project } from '../types';
+import { ProjectIndexItem } from '../types';
+import { getMediaAssetUrl } from '../services/storageService';
 
 interface ProjectCardProps {
-  project: Project;
-  onSelect: (project: Project) => void;
+  project: ProjectIndexItem;
+  onSelect: (slug: string) => void;
   index: number;
 }
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, index }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const coverAsset = project.assets.find((a) => a.id === project.coverAssetId) || project.assets[0];
+  const coverAsset = project.coverAsset;
 
   const categoryLabels: Record<string, string> = {
     branding: 'Brand Identity',
@@ -21,10 +22,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
   };
 
   const isMotion = project.category === 'motion';
+  const thumbUrl = coverAsset ? getMediaAssetUrl(coverAsset.thumbKey || coverAsset.key || coverAsset.thumbUrl || coverAsset.url) : '';
+  const videoPreviewUrl = isMotion && coverAsset && coverAsset.key ? getMediaAssetUrl(coverAsset.key) : '';
 
   return (
     <div
-      onClick={() => onSelect(project)}
+      onClick={() => onSelect(project.slug)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col transition-all duration-300"
@@ -32,15 +35,29 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
       {/* Media container: Natural aspect ratio preservation */}
       <div className="relative w-full rounded-2xl overflow-hidden bg-[#16121f] border border-white/10 transition-all duration-500 group-hover:border-[#8a307f]/60 group-hover:shadow-2xl group-hover:shadow-[#8a307f]/20">
         {coverAsset ? (
-          <img
-            src={coverAsset.thumbUrl || coverAsset.url}
-            alt={coverAsset.alt || project.title}
-            className={`w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] ${
-              isHovered && isMotion ? 'brightness-105' : 'brightness-100'
-            }`}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
+          <>
+            {isHovered && isMotion && videoPreviewUrl && (videoPreviewUrl.endsWith('.mp4') || videoPreviewUrl.endsWith('.webm')) ? (
+              <video
+                src={videoPreviewUrl}
+                poster={thumbUrl}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-auto object-cover"
+              />
+            ) : (
+              <img
+                src={thumbUrl}
+                alt={coverAsset.alt || project.title}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                className={`w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] ${
+                  isHovered && isMotion ? 'brightness-105' : 'brightness-100'
+                }`}
+              />
+            )}
+          </>
         ) : (
           <div className="w-full h-64 flex items-center justify-center bg-[#1a1524] text-white/40">
             <span>No Preview Media</span>
@@ -67,7 +84,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
           </div>
         </div>
 
-        {/* Featured marker - subtle unboxed text in corner */}
+        {/* Featured marker */}
         {project.featured && (
           <div className="absolute top-3 left-3 pointer-events-none">
             <span className="text-[10px] font-mono tracking-wider text-white/90 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded border border-white/10">
@@ -79,7 +96,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
 
       {/* Project Metadata: Strict Zero-Pill Discipline */}
       <div className="mt-4 flex flex-col">
-        {/* Unboxed inline metadata with typographic separators */}
         <div className="flex items-center gap-2 text-xs text-white/50 mb-1.5 font-mono">
           <span className="text-[#ca57bb] font-medium">
             {categoryLabels[project.category] || project.category}
@@ -90,12 +106,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
           <span className="tabular-nums">{project.year}</span>
         </div>
 
-        {/* Title */}
         <h3 className="font-display text-lg sm:text-xl font-bold text-white group-hover:text-[#ca57bb] transition-colors leading-snug">
           {project.title}
         </h3>
 
-        {/* One-line summary */}
         <p className="text-sm text-white/60 line-clamp-2 mt-1 leading-relaxed font-normal">
           {project.summary}
         </p>

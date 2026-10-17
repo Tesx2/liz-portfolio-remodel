@@ -1,14 +1,23 @@
 import React, { useState, useMemo } from 'react';
-import { Project, ProjectCategory } from '../types';
+import { ProjectIndexItem } from '../types';
 import { ProjectCard } from './ProjectCard';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface ProjectGridProps {
-  projects: Project[];
-  onSelectProject: (project: Project) => void;
+  projects: ProjectIndexItem[];
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onSelectProject: (slug: string) => void;
 }
 
-export const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, onSelectProject }) => {
+export const ProjectGrid: React.FC<ProjectGridProps> = ({
+  projects,
+  isLoading,
+  error,
+  onRetry,
+  onSelectProject,
+}) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -22,9 +31,6 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, onSelectProj
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
-      // Must be published for public grid view
-      if (project.status !== 'published') return false;
-
       const matchesCategory =
         selectedCategory === 'all' || project.category === selectedCategory;
 
@@ -47,7 +53,7 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, onSelectProj
           <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
             <span>Portfolio Archive</span>
             <span aria-hidden="true">·</span>
-            <span>2024–2026 Works</span>
+            <span>Cloudflare R2 Index</span>
           </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
             Selected Case Studies
@@ -87,20 +93,48 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, onSelectProj
         })}
       </div>
 
-      {/* Grid: Multi-column CSS columns layout preserving natural aspect ratios */}
-      {filteredProjects.length > 0 ? (
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 space-y-8">
-          {filteredProjects.map((project, idx) => (
-            <div key={project.id} className="break-inside-avoid">
-              <ProjectCard project={project} onSelect={onSelectProject} index={idx} />
-            </div>
-          ))}
+      {/* Loading state */}
+      {isLoading && (
+        <div className="py-28 text-center flex flex-col items-center justify-center space-y-3 rounded-2xl border border-white/[0.06] bg-[#120f18]/30">
+          <Loader2 className="w-8 h-8 animate-spin text-[#ca57bb]" />
+          <span className="text-xs font-mono text-white/50">Fetching projects from Cloudflare R2...</span>
         </div>
-      ) : (
+      )}
+
+      {/* Error state */}
+      {!isLoading && error && (
+        <div className="py-24 text-center rounded-2xl border border-red-500/20 bg-red-500/5 p-8 max-w-xl mx-auto space-y-4">
+          <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+          <div>
+            <h3 className="font-display text-lg font-bold text-white">Could not load projects</h3>
+            <p className="text-xs text-white/60 font-mono mt-1">{error}</p>
+          </div>
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && !error && projects.length === 0 && (
+        <div className="py-24 text-center rounded-2xl border border-white/[0.08] bg-[#120f18]/40 p-8 space-y-3">
+          <SlidersHorizontal className="w-8 h-8 text-white/30 mx-auto" />
+          <h3 className="font-display text-xl font-bold text-white">New work is being added</h3>
+          <p className="text-xs text-white/50 font-mono max-w-md mx-auto">
+            Projects published from the studio admin panel will appear here immediately from Cloudflare R2.
+          </p>
+        </div>
+      )}
+
+      {/* Filtered empty state */}
+      {!isLoading && !error && projects.length > 0 && filteredProjects.length === 0 && (
         <div className="py-20 text-center rounded-2xl border border-white/[0.06] bg-[#120f18]/50">
           <SlidersHorizontal className="w-8 h-8 text-white/30 mx-auto mb-3" />
-          <p className="text-white/70 font-medium">No projects found matching this criteria.</p>
-          <p className="text-xs text-white/40 mt-1">Try selecting &ldquo;All Projects&rdquo; or clearing your search term.</p>
+          <p className="text-white/70 font-medium">No projects found matching your search.</p>
           <button
             onClick={() => {
               setSelectedCategory('all');
@@ -110,6 +144,17 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({ projects, onSelectProj
           >
             Reset Filters
           </button>
+        </div>
+      )}
+
+      {/* Grid: Multi-column columns layout preserving natural aspect ratios */}
+      {!isLoading && !error && filteredProjects.length > 0 && (
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 space-y-8">
+          {filteredProjects.map((project, idx) => (
+            <div key={project.id} className="break-inside-avoid">
+              <ProjectCard project={project} onSelect={onSelectProject} index={idx} />
+            </div>
+          ))}
         </div>
       )}
     </section>

@@ -29,40 +29,76 @@ export const getPublicMediaBaseUrl = () => {
 };
 
 export const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET || 'fallback-secret-key-change-in-prod';
+  const secret = process.env.JWT_SECRET;
+  if (!secret || typeof secret !== 'string' || secret.length < 32) {
+    throw new Error('JWT_SECRET is missing or shorter than 32 characters');
+  }
   return new TextEncoder().encode(secret);
 };
 
-export const verifyAdminSession = async (req) => {
+export const validateSameOrigin = (req) => {
+  const method = (req.httpMethod || '').toUpperCase();
+  if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    return true;
+  }
+
+  const origin = req.headers.origin || req.headers.Origin;
+  if (!origin) return true;
+
   try {
-    // 1. Check Authorization Bearer header
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    let token = null;
+    const originHost = new URL(origin).host.toLowerCase();
+    const requestHost = (
+      req.headers['x-forwarded-host'] ||
+      req.headers.host ||
+      ''
+    ).toLowerCase();
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
+    if (requestHost && originHost !== requestHost) {
+      return false;
     }
+  } catch {
+    return false;
+  }
 
-    // 2. Check Cookie header
-    if (!token && req.headers.cookie) {
-      const match = req.headers.cookie.match(/admin_session=([^;]+)/);
+  return true;
+};
+
+export const verifyAdminSession = async (req) => {
+  // Reject cross-site state-changing requests
+  if (!validateSameOrigin(req)) {
+    return { authorized: false, error: 'Cross-origin request rejected', status: 403 };
+  }
+
+  try {
+    // Read from httpOnly cookie
+    let token = null;
+    if (req.headers.cookie) {
+      const match = req.headers.cookie.match(/(?:^|;\s*)admin_session=([^;]+)/);
       if (match) {
         token = match[1];
       }
     }
 
+    // Fallback: check Authorization Bearer header if same-origin API call
     if (!token) {
-      return { authorized: false, error: 'Authentication required' };
+      const authHeader = req.headers.authorization || req.headers.Authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return { authorized: false, error: 'Authentication required', status: 401 };
     }
 
     const { payload } = await jose.jwtVerify(token, getJwtSecret());
     if (payload.role !== 'admin') {
-      return { authorized: false, error: 'Unauthorized role' };
+      return { authorized: false, error: 'Unauthorized role', status: 401 };
     }
 
-    return { authorized: true, user: payload };
+    return { authorized: true, user: payload, status: 200 };
   } catch (err) {
-    return { authorized: false, error: 'Invalid or expired session token' };
+    return { authorized: false, error: 'Invalid or expired session token', status: 401 };
   }
 };
 
@@ -71,9 +107,7 @@ export const jsonResponse = (data, statusCode = 200, extraHeaders = {}) => {
     statusCode,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'X-Content-Type-Options': 'nosniff',
       ...extraHeaders,
     },
     body: JSON.stringify(data),

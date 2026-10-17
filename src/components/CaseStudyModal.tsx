@@ -1,51 +1,83 @@
 import React, { useEffect, useState } from 'react';
-import { X, ArrowRight, ArrowLeft, ExternalLink, Calendar, User, Tag, CheckCircle2 } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Project } from '../types';
+import { fetchProjectBySlug, getMediaAssetUrl } from '../services/storageService';
 
 interface CaseStudyModalProps {
-  project: Project | null;
-  allProjects: Project[];
+  slug: string | null;
+  allSlugs: string[];
   onClose: () => void;
-  onNavigateProject: (project: Project) => void;
+  onNavigateSlug: (slug: string) => void;
   onContact: () => void;
 }
 
 export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
-  project,
-  allProjects,
+  slug,
+  allSlugs,
   onClose,
-  onNavigateProject,
+  onNavigateSlug,
   onContact,
 }) => {
+  const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedAssetIndex, setSelectedAssetIndex] = useState(0);
 
   useEffect(() => {
+    if (!slug) {
+      setProject(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
     setSelectedAssetIndex(0);
+
+    fetchProjectBySlug(slug)
+      .then((proj) => {
+        setProject(proj);
+        setIsLoading(false);
+        // Requirement 3: update document.title and meta description
+        document.title = `${proj.title} — Liz Kendi`;
+        const metaDesc = document.querySelector('meta[name="description"]');
+        if (metaDesc) {
+          metaDesc.setAttribute('content', proj.summary || proj.title);
+        }
+      })
+      .catch((err) => {
+        setError(err.message || 'Failed loading project from Cloudflare R2');
+        setIsLoading(false);
+      });
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [project, onClose]);
 
-  if (!project) return null;
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.title = 'Liz Kendi — Graphic Designer & Motion Artist Portfolio';
+    };
+  }, [slug, onClose]);
 
-  const currentAsset = project.assets[selectedAssetIndex] || project.assets[0];
+  if (!slug) return null;
+
+  const currentIndex = allSlugs.indexOf(slug);
+  const nextSlug =
+    currentIndex >= 0 && currentIndex < allSlugs.length - 1
+      ? allSlugs[currentIndex + 1]
+      : allSlugs[0];
+  const prevSlug =
+    currentIndex > 0 ? allSlugs[currentIndex - 1] : allSlugs[allSlugs.length - 1];
+
+  const currentAsset = project?.assets[selectedAssetIndex] || project?.assets[0];
   const isPortrait =
     currentAsset && currentAsset.width && currentAsset.height
       ? currentAsset.height > currentAsset.width
       : false;
 
-  const publishedProjects = allProjects.filter((p) => p.status === 'published');
-  const currentIndex = publishedProjects.findIndex((p) => p.id === project.id);
-  const nextProject =
-    currentIndex >= 0 && currentIndex < publishedProjects.length - 1
-      ? publishedProjects[currentIndex + 1]
-      : publishedProjects[0];
-  const prevProject =
-    currentIndex > 0
-      ? publishedProjects[currentIndex - 1]
-      : publishedProjects[publishedProjects.length - 1];
+  const currentAssetUrl = currentAsset ? getMediaAssetUrl(currentAsset.key) : '';
+  const isVideo = currentAsset?.type === 'video' || currentAssetUrl.endsWith('.mp4') || currentAssetUrl.endsWith('.webm');
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-xl animate-in fade-in duration-200">
@@ -53,29 +85,29 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
       <div className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-[#0a080d]/80 backdrop-blur-md border-b border-white/10">
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono tracking-wider text-[#ca57bb] uppercase">
-            CASE STUDY · {project.category.toUpperCase()}
+            CASE STUDY · {project ? project.category.toUpperCase() : 'LOADING'}
           </span>
           <span className="text-white/30" aria-hidden="true">/</span>
           <span className="text-sm font-semibold text-white truncate max-w-xs sm:max-w-md">
-            {project.title}
+            {project?.title || slug}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          {prevProject && (
+          {prevSlug && (
             <button
-              onClick={() => onNavigateProject(prevProject)}
-              title={`Previous: ${prevProject.title}`}
+              onClick={() => onNavigateSlug(prevSlug)}
               className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white transition-colors cursor-pointer"
+              title="Previous Project"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          {nextProject && (
+          {nextSlug && (
             <button
-              onClick={() => onNavigateProject(nextProject)}
-              title={`Next: ${nextProject.title}`}
+              onClick={() => onNavigateSlug(nextSlug)}
               className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white transition-colors cursor-pointer"
+              title="Next Project"
             >
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -91,120 +123,135 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-10 lg:py-16">
-        {/*
-          Golden Rule:
-          "portrait artwork shows image and details side by side;
-           landscape puts the image on top with details below."
-        */}
-        {isPortrait ? (
-          /* PORTRAIT LAYOUT: Side-by-side */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
-            {/* Visual Media Column (Left) */}
-            <div className="lg:col-span-6 sticky top-24">
-              <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#14101c] shadow-2xl">
-                <img
-                  src={currentAsset?.url}
-                  alt={currentAsset?.alt || project.title}
-                  className="w-full h-auto max-h-[80vh] object-contain mx-auto"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-
-              {/* Asset thumbnails if multiple */}
-              {project.assets.length > 1 && (
-                <div className="flex items-center gap-3 mt-4 overflow-x-auto pb-2">
-                  {project.assets.map((asset, idx) => (
-                    <button
-                      key={asset.id}
-                      onClick={() => setSelectedAssetIndex(idx)}
-                      className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
-                        selectedAssetIndex === idx
-                          ? 'border-[#8a307f] ring-2 ring-[#8a307f]/50'
-                          : 'border-white/10 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img
-                        src={asset.thumbUrl || asset.url}
-                        alt={asset.alt}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Details Column (Right) */}
-            <div className="lg:col-span-6 flex flex-col">
-              <ProjectMetaAndStory project={project} onContact={onContact} />
-            </div>
-          </div>
-        ) : (
-          /* LANDSCAPE LAYOUT: Media on top, Details below */
-          <div className="flex flex-col space-y-12">
-            {/* Top Media Hero */}
-            <div className="w-full rounded-2xl overflow-hidden border border-white/10 bg-[#14101c] shadow-2xl">
-              <img
-                src={currentAsset?.url}
-                alt={currentAsset?.alt || project.title}
-                className="w-full h-auto max-h-[75vh] object-contain mx-auto"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-
-            {/* Asset thumbnails if multiple */}
-            {project.assets.length > 1 && (
-              <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                {project.assets.map((asset, idx) => (
-                  <button
-                    key={asset.id}
-                    onClick={() => setSelectedAssetIndex(idx)}
-                    className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
-                      selectedAssetIndex === idx
-                        ? 'border-[#8a307f] ring-2 ring-[#8a307f]/50'
-                        : 'border-white/10 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img
-                      src={asset.thumbUrl || asset.url}
-                      alt={asset.alt}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Details below */}
-            <div className="max-w-4xl mx-auto w-full">
-              <ProjectMetaAndStory project={project} onContact={onContact} />
-            </div>
+        {isLoading && (
+          <div className="py-32 text-center flex flex-col items-center justify-center space-y-3">
+            <Loader2 className="w-10 h-10 animate-spin text-[#ca57bb]" />
+            <span className="text-xs font-mono text-white/50">Fetching case study from Cloudflare R2...</span>
           </div>
         )}
 
-        {/* Next project teaser banner */}
-        {nextProject && (
-          <div className="mt-20 pt-10 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div>
-              <span className="text-xs font-mono text-white/40 uppercase tracking-widest">
-                Next Case Study
-              </span>
-              <h4 className="font-display text-2xl font-bold text-white mt-1">
-                {nextProject.title}
-              </h4>
-              <p className="text-sm text-white/60 mt-0.5">{nextProject.client} · {nextProject.year}</p>
-            </div>
-
+        {error && (
+          <div className="py-24 text-center rounded-2xl border border-red-500/20 bg-red-500/5 p-8 max-w-md mx-auto space-y-3">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
+            <h3 className="font-display text-lg font-bold text-white">Project Not Found</h3>
+            <p className="text-xs font-mono text-white/60">{error}</p>
             <button
-              onClick={() => onNavigateProject(nextProject)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 hover:bg-[#8a307f] text-white text-sm font-semibold transition-all cursor-pointer"
+              onClick={onClose}
+              className="mt-3 px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs font-semibold text-white cursor-pointer"
             >
-              <span>Explore Next Project</span>
-              <ArrowRight className="w-4 h-4" />
+              Back to Overview
             </button>
           </div>
+        )}
+
+        {!isLoading && project && (
+          <>
+            {isPortrait ? (
+              /* PORTRAIT LAYOUT: Side-by-side */
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+                <div className="lg:col-span-6 sticky top-24">
+                  <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#14101c] shadow-2xl">
+                    {isVideo ? (
+                      <video
+                        src={currentAssetUrl}
+                        controls
+                        playsInline
+                        className="w-full h-auto max-h-[80vh] object-contain mx-auto"
+                      />
+                    ) : (
+                      <img
+                        src={currentAssetUrl}
+                        alt={currentAsset?.alt || project.title}
+                        className="w-full h-auto max-h-[80vh] object-contain mx-auto"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                  </div>
+
+                  {project.assets.length > 1 && (
+                    <div className="flex items-center gap-3 mt-4 overflow-x-auto pb-2">
+                      {project.assets.map((asset, idx) => {
+                        const thumbSrc = getMediaAssetUrl(asset.thumbKey || asset.key);
+                        return (
+                          <button
+                            key={asset.id}
+                            onClick={() => setSelectedAssetIndex(idx)}
+                            className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                              selectedAssetIndex === idx
+                                ? 'border-[#8a307f] ring-2 ring-[#8a307f]/50'
+                                : 'border-white/10 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img
+                              src={thumbSrc}
+                              alt={asset.alt}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:col-span-6 flex flex-col">
+                  <ProjectMetaAndStory project={project} onContact={onContact} />
+                </div>
+              </div>
+            ) : (
+              /* LANDSCAPE LAYOUT: Media on top, Details below */
+              <div className="flex flex-col space-y-12">
+                <div className="w-full rounded-2xl overflow-hidden border border-white/10 bg-[#14101c] shadow-2xl">
+                  {isVideo ? (
+                    <video
+                      src={currentAssetUrl}
+                      controls
+                      playsInline
+                      className="w-full h-auto max-h-[75vh] object-contain mx-auto"
+                    />
+                  ) : (
+                    <img
+                      src={currentAssetUrl}
+                      alt={currentAsset?.alt || project.title}
+                      className="w-full h-auto max-h-[75vh] object-contain mx-auto"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
+
+                {project.assets.length > 1 && (
+                  <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                    {project.assets.map((asset, idx) => {
+                      const thumbSrc = getMediaAssetUrl(asset.thumbKey || asset.key);
+                      return (
+                        <button
+                          key={asset.id}
+                          onClick={() => setSelectedAssetIndex(idx)}
+                          className={`relative w-20 h-20 rounded-lg overflow-hidden border-2 shrink-0 transition-all cursor-pointer ${
+                            selectedAssetIndex === idx
+                              ? 'border-[#8a307f] ring-2 ring-[#8a307f]/50'
+                              : 'border-white/10 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img
+                            src={thumbSrc}
+                            alt={asset.alt}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="max-w-4xl mx-auto w-full">
+                  <ProjectMetaAndStory project={project} onContact={onContact} />
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -219,7 +266,6 @@ interface ProjectMetaAndStoryProps {
 const ProjectMetaAndStory: React.FC<ProjectMetaAndStoryProps> = ({ project, onContact }) => {
   return (
     <div className="flex flex-col space-y-8">
-      {/* Title & Client Bar */}
       <div>
         <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
           <span>{project.category}</span>
@@ -234,7 +280,6 @@ const ProjectMetaAndStory: React.FC<ProjectMetaAndStoryProps> = ({ project, onCo
         </p>
       </div>
 
-      {/* Metadata grid - strict unboxed style */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-y border-white/10 text-xs font-mono">
         <div>
           <span className="text-white/40 block mb-1">CLIENT</span>
@@ -254,7 +299,6 @@ const ProjectMetaAndStory: React.FC<ProjectMetaAndStoryProps> = ({ project, onCo
         </div>
       </div>
 
-      {/* Challenge & Solution */}
       {project.challenge && (
         <div className="space-y-4">
           <div>
@@ -278,14 +322,14 @@ const ProjectMetaAndStory: React.FC<ProjectMetaAndStoryProps> = ({ project, onCo
         </div>
       )}
 
-      {/* Story Description (Markdown prose) */}
-      <div className="prose prose-invert max-w-none text-sm text-white/70 leading-relaxed space-y-4 font-normal">
-        {project.description.split('\n\n').map((paragraph, i) => (
-          <p key={i}>{paragraph}</p>
-        ))}
-      </div>
+      {project.description && (
+        <div className="prose prose-invert max-w-none text-sm text-white/70 leading-relaxed space-y-4 font-normal">
+          {project.description.split('\n\n').map((paragraph, i) => (
+            <p key={i}>{paragraph}</p>
+          ))}
+        </div>
+      )}
 
-      {/* Deliverables & Tools */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-white/10">
         {project.deliverables && project.deliverables.length > 0 && (
           <div>
@@ -322,7 +366,6 @@ const ProjectMetaAndStory: React.FC<ProjectMetaAndStoryProps> = ({ project, onCo
         )}
       </div>
 
-      {/* Action CTA */}
       <div className="pt-6">
         <button
           onClick={onContact}

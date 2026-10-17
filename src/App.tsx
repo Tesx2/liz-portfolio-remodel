@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Project, R2Config } from './types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ProjectIndexItem } from './types';
 import {
-  getStoredProjects,
-  getStoredR2Config,
-  saveAllProjects,
-  saveR2Config,
-  isAdminAuthenticated,
-  setAdminAuthenticated,
+  fetchPublicProjectsIndex,
+  checkAdminSession,
+  logoutAdminSession,
 } from './services/storageService';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -23,23 +20,74 @@ import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 
 export default function App() {
-  const [projects, setProjects] = useState<Project[]>(getStoredProjects);
-  const [r2Config, setR2Config] = useState<R2Config>(getStoredR2Config);
-  const [isAdmin, setIsAdmin] = useState<boolean>(isAdminAuthenticated);
+  const [publicProjects, setPublicProjects] = useState<ProjectIndexItem[]>([]);
+  const [isLoadingGrid, setIsLoadingGrid] = useState<boolean>(true);
+  const [gridError, setGridError] = useState<string | null>(null);
 
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<string>('home');
-  const [selectedCaseStudy, setSelectedCaseStudy] = useState<Project | null>(null);
+  const [activeCaseStudySlug, setActiveCaseStudySlug] = useState<string | null>(null);
   const [showShowreel, setShowShowreel] = useState<boolean>(false);
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState<boolean>(false);
 
+  // Load public grid from Cloudflare R2: /content/index.json
+  const loadPublicGrid = useCallback(async () => {
+    setIsLoadingGrid(true);
+    setGridError(null);
+    try {
+      const data = await fetchPublicProjectsIndex();
+      setPublicProjects(data);
+    } catch (err: any) {
+      setGridError(err.message || 'Failed to load projects from Cloudflare R2.');
+      setPublicProjects([]);
+    } finally {
+      setIsLoadingGrid(false);
+    }
+  }, []);
+
+  // History API routing: support direct URLs /work/<slug>
   useEffect(() => {
-    // Keep local storage in sync
-    saveAllProjects(projects);
-  }, [projects]);
+    loadPublicGrid();
+
+    // Check if user is signed into admin via HttpOnly cookie
+    checkAdminSession().then((authenticated) => {
+      setIsAdmin(authenticated);
+    });
+
+    const parseRouteFromLocation = () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/work/')) {
+        const slug = path.replace(/^\/work\//, '').replace(/\/$/, '');
+        if (slug) {
+          setActiveCaseStudySlug(slug);
+          return;
+        }
+      }
+      setActiveCaseStudySlug(null);
+    };
+
+    parseRouteFromLocation();
+    window.addEventListener('popstate', parseRouteFromLocation);
+
+    return () => window.removeEventListener('popstate', parseRouteFromLocation);
+  }, [loadPublicGrid]);
+
+  const handleOpenCaseStudy = (slug: string) => {
+    window.history.pushState({}, '', `/work/${slug}`);
+    setActiveCaseStudySlug(slug);
+  };
+
+  const handleCloseCaseStudy = () => {
+    window.history.pushState({}, '', '/');
+    setActiveCaseStudySlug(null);
+  };
 
   const handleNavigate = (view: string) => {
     setCurrentView(view);
+    if (activeCaseStudySlug) {
+      handleCloseCaseStudy();
+    }
     if (view === 'home') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -59,17 +107,18 @@ export default function App() {
   };
 
   const handleLoginSuccess = () => {
-    setAdminAuthenticated(true);
     setIsAdmin(true);
     setShowAdminLogin(false);
     setShowAdminDashboard(true);
   };
 
-  const handleLogout = () => {
-    setAdminAuthenticated(false);
+  const handleLogout = async () => {
+    await logoutAdminSession();
     setIsAdmin(false);
     setShowAdminDashboard(false);
   };
+
+  const allSlugs = publicProjects.map((p) => p.slug);
 
   return (
     <div className="min-h-screen bg-[#0a080d] text-[#f3f0f6] flex flex-col selection:bg-[#8a307f] selection:text-white noise-overlay">
@@ -92,10 +141,13 @@ export default function App() {
         {/* Dynamic Continuous Marquee Ribbon */}
         <MarqueeStrip />
 
-        {/* Selected Works Masonry Grid with Natural Aspect Ratios */}
+        {/* Selected Works Masonry Grid (Loads from Cloudflare R2 index.json) */}
         <ProjectGrid
-          projects={projects}
-          onSelectProject={(project) => setSelectedCaseStudy(project)}
+          projects={publicProjects}
+          isLoading={isLoadingGrid}
+          error={gridError}
+          onRetry={loadPublicGrid}
+          onSelectProject={handleOpenCaseStudy}
         />
 
         {/* Secondary Marquee Ribbon */}
@@ -117,14 +169,17 @@ export default function App() {
       {/* Editorial Footer */}
       <Footer onOpenAdmin={handleOpenAdmin} isAdmin={isAdmin} />
 
-      {/* Case Study Lightbox Modal (Portrait/Landscape dynamic layout) */}
+      {/* Case Study Lightbox Modal: Route /work/<slug> */}
       <CaseStudyModal
-        project={selectedCaseStudy}
-        allProjects={projects}
-        onClose={() => setSelectedCaseStudy(null)}
-        onNavigateProject={(p) => setSelectedCaseStudy(p)}
+        slug={activeCaseStudySlug}
+        allSlugs={allSlugs}
+        onClose={handleCloseCaseStudy}
+        onNavigateSlug={(slug) => {
+          window.history.pushState({}, '', `/work/${slug}`);
+          setActiveCaseStudySlug(slug);
+        }}
         onContact={() => {
-          setSelectedCaseStudy(null);
+          handleCloseCaseStudy();
           handleNavigate('contact');
         }}
       />
@@ -139,28 +194,24 @@ export default function App() {
         }}
       />
 
-      {/* Admin Login Modal */}
+      {/* Admin Login Modal (Strict server authentication with cookie) */}
       <AdminLogin
         isOpen={showAdminLogin}
         onClose={() => setShowAdminLogin(false)}
         onLoginSuccess={handleLoginSuccess}
       />
 
-      {/* Full Admin Dashboard & Media Ingestion Suite */}
+      {/* Full Admin Dashboard & R2 Media Ingestion Suite */}
       {showAdminDashboard && (
         <AdminDashboard
-          projects={projects}
-          onUpdateProjects={(updated) => setProjects(updated)}
-          r2Config={r2Config}
-          onUpdateR2Config={(updated) => {
-            setR2Config(updated);
-            saveR2Config(updated);
-          }}
           onLogout={handleLogout}
-          onClose={() => setShowAdminDashboard(false)}
-          onPreviewProject={(proj) => {
+          onClose={() => {
             setShowAdminDashboard(false);
-            setSelectedCaseStudy(proj);
+            loadPublicGrid();
+          }}
+          onPreviewProject={(slug) => {
+            setShowAdminDashboard(false);
+            handleOpenCaseStudy(slug);
           }}
         />
       )}

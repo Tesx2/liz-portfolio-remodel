@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, KeyRound, AlertCircle, X, ShieldCheck } from 'lucide-react';
+import { Lock, KeyRound, AlertCircle, X } from 'lucide-react';
 
 interface AdminLoginProps {
   isOpen: boolean;
@@ -14,55 +14,40 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onClose, onLogin
 
   if (!isOpen) return null;
 
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      // First attempt authentication with the Netlify function
       const res = await fetch('/.netlify/functions/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ password }),
       });
 
       if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          localStorage.setItem('liz_kendi_jwt_token', data.token);
-        }
         setIsLoading(false);
+        setPassword('');
         onLoginSuccess();
         return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      setIsLoading(false);
+
+      if (res.status === 429) {
+        setError(data.error || 'Too many failed login attempts. Please try again later.');
       } else if (res.status === 401) {
-        setIsLoading(false);
-        setError('Invalid admin credentials. Please enter the authorized designer password.');
-        return;
+        setError(data.error || 'Invalid admin credentials.');
+      } else {
+        setError(data.error || 'Authentication rejected by server.');
       }
     } catch {
-      // Netlify function not reachable (e.g. local preview mode), fallback below
-    }
-
-    // Local authentication fallback
-    setTimeout(() => {
-      if (password === 'lizkendi2026' || password === 'admin' || password === 'portfolio') {
-        setIsLoading(false);
-        onLoginSuccess();
-      } else {
-        setIsLoading(false);
-        setError('Invalid admin credentials. Please enter the authorized designer password.');
-      }
-    }, 400);
-  };
-
-  const handleQuickUnlock = () => {
-    setPassword('lizkendi2026');
-    setIsLoading(true);
-    setTimeout(() => {
       setIsLoading(false);
-      onLoginSuccess();
-    }, 300);
+      setError('Could not reach the server. Please check your network connection.');
+    }
   };
 
   return (
@@ -104,7 +89,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onClose, onLogin
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password (e.g. lizkendi2026)"
+                placeholder="Enter admin password"
                 className="w-full pl-10 pr-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#8a307f] transition-colors"
                 autoFocus
               />
@@ -116,22 +101,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onClose, onLogin
             disabled={isLoading}
             className="w-full py-3 px-4 rounded-xl bg-[#8a307f] hover:bg-[#9e3992] text-white font-semibold text-xs tracking-wider uppercase transition-all shadow-md shadow-[#8a307f]/25 disabled:opacity-50 cursor-pointer"
           >
-            {isLoading ? 'Verifying Session...' : 'Authenticate & Enter Admin'}
+            {isLoading ? 'Verifying Credentials...' : 'Authenticate & Enter Admin'}
           </button>
         </form>
-
-        <div className="mt-6 pt-5 border-t border-white/10 text-center">
-          <p className="text-xs text-white/50 mb-3">
-            Default credentials: <code className="text-[#ca57bb] font-mono">lizkendi2026</code>
-          </p>
-          <button
-            onClick={handleQuickUnlock}
-            className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-white/80 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 rounded-lg transition-colors cursor-pointer"
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>One-Click Designer Unlock</span>
-          </button>
-        </div>
       </div>
     </div>
   );
