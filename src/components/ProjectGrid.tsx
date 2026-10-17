@@ -7,6 +7,7 @@ interface ProjectGridProps {
   projects: ProjectIndexItem[];
   isLoading: boolean;
   error: string | null;
+  isMediaConfigured: boolean;
   onRetry: () => void;
   onSelectProject: (slug: string) => void;
 }
@@ -15,6 +16,7 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({
   projects,
   isLoading,
   error,
+  isMediaConfigured,
   onRetry,
   onSelectProject,
 }) => {
@@ -101,8 +103,21 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({
         </div>
       )}
 
+      {/* Media address not configured state */}
+      {!isLoading && !isMediaConfigured && (
+        <div className="py-24 text-center rounded-2xl border border-amber-500/20 bg-amber-500/5 p-8 max-w-xl mx-auto space-y-4">
+          <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
+          <div>
+            <h3 className="font-display text-xl font-bold text-white">Media address is not configured</h3>
+            <p className="text-xs text-white/60 font-mono mt-1 leading-relaxed">
+              PUBLIC_MEDIA_BASE_URL is not set. Configure your Cloudflare R2 media custom domain in Netlify environment variables (e.g. https://media.yourdomain.com).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Error state */}
-      {!isLoading && error && (
+      {!isLoading && isMediaConfigured && error && (
         <div className="py-24 text-center rounded-2xl border border-red-500/20 bg-red-500/5 p-8 max-w-xl mx-auto space-y-4">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <div>
@@ -119,8 +134,8 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({
         </div>
       )}
 
-      {/* Empty state */}
-      {!isLoading && !error && projects.length === 0 && (
+      {/* Empty state (when media address is configured, but 0 published projects) */}
+      {!isLoading && isMediaConfigured && !error && projects.length === 0 && (
         <div className="py-24 text-center rounded-2xl border border-white/[0.08] bg-[#120f18]/40 p-8 space-y-3">
           <SlidersHorizontal className="w-8 h-8 text-white/30 mx-auto" />
           <h3 className="font-display text-xl font-bold text-white">New work is being added</h3>

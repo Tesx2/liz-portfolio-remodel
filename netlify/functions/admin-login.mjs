@@ -56,14 +56,44 @@ export const handler = async (event) => {
       return errorResponse('Password is required', 400);
     }
 
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-    if (!passwordHash) {
-      return errorResponse('Server ADMIN_PASSWORD_HASH not configured', 500);
+    // Read and clean ADMIN_PASSWORD_HASH: trim whitespace and strip one pair of wrapping quotes
+    let rawHash = process.env.ADMIN_PASSWORD_HASH;
+    let passwordHash = '';
+    if (rawHash) {
+      passwordHash = rawHash.trim();
+      if (
+        (passwordHash.startsWith('"') && passwordHash.endsWith('"')) ||
+        (passwordHash.startsWith("'") && passwordHash.endsWith("'"))
+      ) {
+        passwordHash = passwordHash.slice(1, -1).trim();
+      }
     }
 
+    // Case a: hash missing
+    if (!passwordHash) {
+      console.log('[admin-login] case a: hash missing');
+      return errorResponse('Admin sign-in is not configured correctly on the server.', 500);
+    }
+
+    // Case b: hash looks malformed (not 60 characters, or does not start with $2a$, $2b$ or $2y$)
+    const isValidFormat =
+      passwordHash.length === 60 &&
+      (passwordHash.startsWith('$2a$') ||
+        passwordHash.startsWith('$2b$') ||
+        passwordHash.startsWith('$2y$'));
+
+    if (!isValidFormat) {
+      console.log(`[admin-login] case b: hash looks malformed (length: ${passwordHash.length})`);
+      return errorResponse('Admin sign-in is not configured correctly on the server.', 500);
+    }
+
+    // Compare password against cleaned hash
     const isMatch = await bcrypt.compare(password, passwordHash);
 
     if (!isMatch) {
+      // Case c: bcrypt.compare returned false (wrong password)
+      console.log('[admin-login] case c: bcrypt.compare returned false (wrong password)');
+
       // Record failed attempt
       ipRecord.count += 1;
       if (ipRecord.count >= 5) {
@@ -73,7 +103,7 @@ export const handler = async (event) => {
 
       // Mandatory 600ms wait before replying to wrong password
       await new Promise((resolve) => setTimeout(resolve, 600));
-      return errorResponse('Invalid admin credentials', 401);
+      return errorResponse('Wrong password.', 401);
     }
 
     // Reset IP failed count on successful authentication

@@ -12,12 +12,14 @@ try {
 const PUBLIC_MEDIA_URL_KEY = 'liz_kendi_public_media_url';
 
 export const getPublicMediaBaseUrl = (): string => {
-  const envUrl = (import.meta as any).env?.PUBLIC_MEDIA_BASE_URL || (import.meta as any).env?.VITE_PUBLIC_MEDIA_BASE_URL;
-  if (envUrl && typeof envUrl === 'string') {
-    return envUrl.replace(/\/$/, '');
+  const envUrl = (import.meta as any).env?.PUBLIC_MEDIA_BASE_URL;
+  if (typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
   }
   const stored = localStorage.getItem(PUBLIC_MEDIA_URL_KEY);
-  if (stored) return stored.replace(/\/$/, '');
+  if (typeof stored === 'string' && stored.trim()) {
+    return stored.trim().replace(/\/+$/, '');
+  }
   return '';
 };
 
@@ -79,37 +81,48 @@ export const logoutAdminSession = async (): Promise<void> => {
 /**
  * Fetch published index for the public grid from Cloudflare R2
  */
-export const fetchPublicProjectsIndex = async (): Promise<ProjectIndexItem[]> => {
-  const baseUrl = getPublicMediaBaseUrl();
-  const url = baseUrl
-    ? `${baseUrl}/content/index.json?v=${Date.now()}`
-    : `/content/index.json?v=${Date.now()}`;
+export const fetchPublicProjectsIndex = async (): Promise<{
+  configured: boolean;
+  projects: ProjectIndexItem[];
+}> => {
+  const base = getPublicMediaBaseUrl();
+  if (!base) {
+    // If PUBLIC_MEDIA_BASE_URL is undefined or empty, do NOT request any URL.
+    return { configured: false, projects: [] };
+  }
+
+  const url = `${base}/content/index.json`;
 
   const res = await fetch(url, {
     cache: 'no-cache',
     headers: { Accept: 'application/json' },
   });
 
+  // A 404 from the media address means "no published projects yet" -> empty state, not an error
+  if (res.status === 404) {
+    return { configured: true, projects: [] };
+  }
+
   if (!res.ok) {
-    throw new Error(`Failed to load index: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to load index (${res.status}): ${res.statusText}`);
   }
 
   const data = await res.json();
-  if (!Array.isArray(data)) {
-    throw new Error('Index format invalid');
-  }
-
-  return data;
+  return {
+    configured: true,
+    projects: Array.isArray(data) ? data : [],
+  };
 };
 
 /**
  * Fetch full project case study from Cloudflare R2 by slug
  */
 export const fetchProjectBySlug = async (slug: string): Promise<Project> => {
-  const baseUrl = getPublicMediaBaseUrl();
-  const url = baseUrl
-    ? `${baseUrl}/content/projects/${slug}.json?v=${Date.now()}`
-    : `/content/projects/${slug}.json?v=${Date.now()}`;
+  const base = getPublicMediaBaseUrl();
+  if (!base) {
+    throw new Error('Media address is not configured');
+  }
+  const url = `${base}/content/projects/${slug}.json`;
 
   const res = await fetch(url, {
     cache: 'no-cache',

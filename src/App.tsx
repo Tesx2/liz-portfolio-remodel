@@ -31,13 +31,21 @@ export default function App() {
   const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState<boolean>(false);
 
+  const [isMediaConfigured, setIsMediaConfigured] = useState<boolean>(true);
+
   // Load public grid from Cloudflare R2: /content/index.json
   const loadPublicGrid = useCallback(async () => {
     setIsLoadingGrid(true);
     setGridError(null);
     try {
-      const data = await fetchPublicProjectsIndex();
-      setPublicProjects(data);
+      const res = await fetchPublicProjectsIndex();
+      if (!res.configured) {
+        setIsMediaConfigured(false);
+        setPublicProjects([]);
+      } else {
+        setIsMediaConfigured(true);
+        setPublicProjects(res.projects);
+      }
     } catch (err: any) {
       setGridError(err.message || 'Failed to load projects from Cloudflare R2.');
       setPublicProjects([]);
@@ -146,6 +154,7 @@ export default function App() {
           projects={publicProjects}
           isLoading={isLoadingGrid}
           error={gridError}
+          isMediaConfigured={isMediaConfigured}
           onRetry={loadPublicGrid}
           onSelectProject={handleOpenCaseStudy}
         />
