@@ -137,6 +137,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     onUpdateProjects(updatedList);
     saveAllProjects(updatedList);
+
+    // If Netlify function is active, sync directly to Cloudflare R2
+    const token = localStorage.getItem('liz_kendi_jwt_token');
+    if (token) {
+      fetch('/.netlify/functions/save-project', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedProj),
+      })
+        .then((res) => {
+          if (res.ok) {
+            showToast(`Project "${updatedProj.title}" saved and synced to Cloudflare R2!`);
+          }
+        })
+        .catch((err) => console.warn('R2 sync notice:', err));
+    }
+
     showToast(`Project "${updatedProj.title}" saved successfully!`);
     setActiveTab('projects');
   };

@@ -14,12 +14,37 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ isOpen, onClose, onLogin
 
   if (!isOpen) return null;
 
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Default admin password for Liz Kendi's portfolio admin panel
+    try {
+      // First attempt authentication with the Netlify function
+      const res = await fetch('/.netlify/functions/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          localStorage.setItem('liz_kendi_jwt_token', data.token);
+        }
+        setIsLoading(false);
+        onLoginSuccess();
+        return;
+      } else if (res.status === 401) {
+        setIsLoading(false);
+        setError('Invalid admin credentials. Please enter the authorized designer password.');
+        return;
+      }
+    } catch {
+      // Netlify function not reachable (e.g. local preview mode), fallback below
+    }
+
+    // Local authentication fallback
     setTimeout(() => {
       if (password === 'lizkendi2026' || password === 'admin' || password === 'portfolio') {
         setIsLoading(false);
