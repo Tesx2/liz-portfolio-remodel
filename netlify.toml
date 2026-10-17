@@ -1,0 +1,48 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA routing redirect for client-side navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Legacy URL redirects to protect existing Google Search rankings
+[[redirects]]
+  from = "/portfolio.html"
+  to = "/#work"
+  status = 301
+
+[[redirects]]
+  from = "/about.html"
+  to = "/#about"
+  status = 301
+
+[[redirects]]
+  from = "/services.html"
+  to = "/#services"
+  status = 301
+
+[[redirects]]
+  from = "/contact.html"
+  to = "/#contact"
+  status = 301
+
+[[redirects]]
+  from = "/testimonials.html"
+  to = "/#testimonials"
+  status = 301
+
+# Production security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
