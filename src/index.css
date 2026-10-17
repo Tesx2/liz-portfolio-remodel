@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --color-brand-purple: #8a307f;
+  --color-brand-purple-hover: #9e3992;
+  --color-brand-purple-dark: #581650;
+  --color-brand-purple-light: #ca57bb;
+  --color-brand-pantone-red: #e11d48;
+}
+
+@layer base {
+  :root {
+    --bg-dark: #0a080d;
+    --bg-surface: #120f18;
+    --bg-surface-elevated: #1a1622;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(138, 48, 127, 0.35);
+    --brand-accent: #8a307f;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-dark);
+    color: #f3f0f6;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a080d;
+}
+::-webkit-scrollbar-thumb {
+  background: #272132;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8a307f;
+}
+
+/* Continuous marquee ribbon */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 25s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Subtle organic grain effect */
+.noise-overlay {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
