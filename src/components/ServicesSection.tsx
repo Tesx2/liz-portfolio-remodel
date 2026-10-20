@@ -13,13 +13,8 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onContact }) =
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="max-w-2xl">
-            <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
-              <span>Studio Capabilities</span>
-              <span aria-hidden="true">·</span>
-              <span>Services & Deliverables</span>
-            </div>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
-              End-to-end design & motion direction.
+              Services
             </h2>
           </div>
 
@@ -27,7 +22,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onContact }) =
             onClick={onContact}
             className="px-5 py-2.5 rounded-xl bg-[#8a307f] hover:bg-[#9e3992] text-white text-xs font-semibold tracking-wide transition-all self-start md:self-end cursor-pointer"
           >
-            Request Rate Card & Availability
+            Contact me
           </button>
         </div>
 

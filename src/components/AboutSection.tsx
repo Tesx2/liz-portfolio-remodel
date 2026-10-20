@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, Award, Compass, Film, Layers } from 'lucide-react';
+import { ArrowUpRight, Download } from 'lucide-react';
 import lizPortraitImg from '../assets/images/liz_kendi_portrait_1792226932929.jpg';
 import { SiteContent } from '../types';
 import { getMediaAssetUrl } from '../services/storageService';
@@ -15,19 +15,18 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
     : lizPortraitImg;
 
   const tools = [
-    { name: 'Cinema 4D & Octane', category: '3D Simulation' },
-    { name: 'Adobe After Effects', category: 'Motion & Compositing' },
-    { name: 'Adobe Illustrator', category: 'Identity & Vectors' },
-    { name: 'Figma', category: 'UI & Systems' },
-    { name: 'Adobe InDesign', category: 'Editorial Print' },
-    { name: 'Premiere Pro', category: 'Editing & Color' },
+    { name: 'Adobe After Effects', category: 'Animation & Motion' },
+    { name: 'Adobe Photoshop', category: 'Design & Texturing' },
+    { name: 'Adobe Illustrator', category: 'Vector & Identity' },
+    { name: 'Premiere Pro', category: 'Video Editing' },
+    { name: 'Adobe Animate', category: '2D Animation' },
+    { name: 'Maya', category: '3D Animation' },
+    { name: '3ds Max', category: '3D Modeling' },
   ];
 
   const milestones = [
-    { year: '2026', title: 'Senior Art Director & 3D Motion Lead', place: 'Independent Studio, Nairobi' },
-    { year: '2024', title: 'Mainstage Visuals Director', place: 'Kinetic Visual Arts Festival' },
-    { year: '2023', title: 'Editorial Risograph Fellow', place: 'Zurich Modern Archive Residency' },
-    { year: '2021', title: 'Brand & Motion Designer', place: 'Creative Agencies East Africa' },
+    { year: '2021 – 2024', title: 'Diploma in Animation and Graphic Design', place: 'Kenya Institute of Mass Communication' },
+    { year: 'May – Jul 2023', title: 'Graphic Design Internship', place: 'Kenneth Lamu Marketing Communication' },
   ];
 
   return (
@@ -35,13 +34,8 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
       <div className="max-w-7xl mx-auto px-6">
         {/* Section Header */}
         <div className="max-w-3xl mb-16">
-          <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
-            <span>About The Artist</span>
-            <span aria-hidden="true">·</span>
-            <span>Ethos & Practice</span>
-          </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-            Bridging East African kinetic energy with architectural precision.
+            About me
           </h2>
         </div>
 
@@ -52,7 +46,10 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
             <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#16121f] shadow-2xl">
               <img
                 src={portraitUrl}
-                alt="Liz Kendi, Graphic Designer and Motion Artist in Nairobi, Kenya"
+                alt="Liz Kendi, Graphic Designer and Animator in Nairobi, Kenya"
+                width={600}
+                height={750}
+                loading="lazy"
                 className="w-full h-auto object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -60,7 +57,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-display text-xl font-bold text-white">Liz Kendi</h3>
-                    <p className="text-xs text-white/60 font-mono mt-0.5">Art Director · Motion Designer</p>
+                    <p className="text-xs text-white/60 font-mono mt-0.5">Graphic designer and animator</p>
                   </div>
                   <span className="text-xs font-mono text-[#ca57bb] bg-[#8a307f]/15 border border-[#8a307f]/30 px-2.5 py-1 rounded">
                     Nairobi, KE
@@ -72,23 +69,23 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
 
           {/* Right Column: Bio Narrative */}
           <div className="lg:col-span-7 flex flex-col space-y-8">
-            <div className="text-base sm:text-lg text-white/80 leading-relaxed space-y-5 font-normal">
+            <div className="text-base sm:text-lg text-white/80 leading-relaxed space-y-4 font-normal">
               <p>
-                I am a graphic designer and motion artist based in Nairobi, Kenya. Over the past eight years, my practice has centered on constructing visual worlds that move—transforming static identities into living, breathing kinetic systems.
+                I am a graphic designer and animator based in Nairobi, Kenya, with 2 years of experience.
               </p>
               <p>
-                My work draws directly from Nairobi’s kinetic urban tapestry: the syncopated rhythms of Matatu typography, rich textured textiles, and the uncompromising structural rigor of modernist architecture. By pairing these cultural narratives with procedural 3D simulations and Swiss grid systems, I craft identities that stand boldly on international stages.
+                I hold a Diploma in Animation and Graphic Design from Kenya Institute of Mass Communication (2021 to 2024), and completed a graphic design internship at Kenneth Lamu Marketing Communication from May to July 2023.
               </p>
               <p>
-                Whether directing mainstage festival visuals, formulating luxury coffee packaging, or directing title sequences, I believe motion is not decoration—it is the emotional heartbeat of modern brand storytelling.
+                I speak English and Kiswahili. When I am not animating or designing, I enjoy drawing, singing, travelling, and reading novels.
               </p>
             </div>
 
             {/* Disciplines & Toolkit */}
             <div className="pt-6 border-t border-white/10">
-              <h4 className="text-xs font-mono text-white/50 uppercase tracking-widest mb-4">
-                Primary Software & Production Toolkit
-              </h4>
+              <h3 className="text-xs font-mono text-white/50 uppercase tracking-widest mb-4">
+                Tools
+              </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {tools.map((t, i) => (
                   <div key={i} className="p-3 rounded-xl bg-white/[0.03] border border-white/10">
@@ -101,9 +98,9 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
 
             {/* Milestones / Career Timeline */}
             <div className="pt-6 border-t border-white/10">
-              <h4 className="text-xs font-mono text-white/50 uppercase tracking-widest mb-4">
-                Selected Milestones & Experience
-              </h4>
+              <h3 className="text-xs font-mono text-white/50 uppercase tracking-widest mb-4">
+                Education & Experience
+              </h3>
               <div className="space-y-3 font-mono text-xs">
                 {milestones.map((m, i) => (
                   <div key={i} className="flex items-start justify-between py-2 border-b border-white/[0.04]">
@@ -117,13 +114,22 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onConta
               </div>
             </div>
 
-            {/* Contact Trigger */}
-            <div className="pt-4">
+            {/* Actions: Download CV + Contact */}
+            <div className="pt-4 flex flex-wrap items-center gap-4">
+              <a
+                href="/liz-kendi-cv.pdf"
+                download="Liz-Kendi-CV.pdf"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#8a307f] hover:bg-[#9e3992] text-white text-sm font-semibold transition-all cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download CV</span>
+              </a>
+
               <button
                 onClick={onContact}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 hover:bg-[#8a307f] text-white text-sm font-semibold transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-all cursor-pointer"
               >
-                <span>Inquire About Availability</span>
+                <span>Contact me</span>
                 <ArrowUpRight className="w-4 h-4" />
               </button>
             </div>

@@ -239,6 +239,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       updatedProj.coverAssetId = updatedProj.assets[0].id;
     }
 
+    // Require alt text for every image when publishing
+    if (updatedProj.status === 'published') {
+      const missingAlt = updatedProj.assets.find(
+        (a) => !a.alt || !a.alt.trim()
+      );
+      if (missingAlt) {
+        setIsSaving(false);
+        const msg = 'Alt text is required for every image before publishing.';
+        setSaveError(msg);
+        showToast(msg);
+        return;
+      }
+    }
+
     try {
       const res = await saveProjectToR2(updatedProj);
       showToast('Saved.');
@@ -373,7 +387,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         height,
         duration,
         size: file.size,
-        alt: `${currentProj.title} file`,
+        alt: '',
         caption: file.name,
         sortOrder: (currentProj.assets?.length || 0) + 1,
       };
@@ -1695,18 +1709,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         <div className="space-y-2 text-xs">
                           <div>
-                            <label className="block text-[11px] text-white/50 mb-1">
-                              Alt text
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[11px] text-white/70 font-medium">
+                                Alt text <span className="text-red-400">*</span>
+                              </label>
+                              {(!asset.alt || !asset.alt.trim()) && (
+                                <span className="text-[10px] text-red-400">Required</span>
+                              )}
+                            </div>
                             <input
                               type="text"
-                              value={asset.alt}
+                              value={asset.alt || ''}
+                              placeholder="Describe image for screen readers & SEO"
                               onChange={(e) => {
                                 const updatedAssets = [...editingProject.assets];
                                 updatedAssets[idx].alt = e.target.value;
                                 setEditingProject({ ...editingProject, assets: updatedAssets });
                               }}
-                              className="w-full px-2 py-1.5 bg-[#0b0811] border border-white/10 rounded text-white text-xs min-h-[36px]"
+                              className={`w-full px-2 py-1.5 bg-[#0b0811] border rounded text-white text-xs min-h-[36px] ${
+                                !asset.alt || !asset.alt.trim()
+                                  ? 'border-red-500/50 focus:border-red-400'
+                                  : 'border-white/10 focus:border-[#8a307f]'
+                              }`}
                             />
                           </div>
 

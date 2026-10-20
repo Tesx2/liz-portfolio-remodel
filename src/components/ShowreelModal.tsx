@@ -105,7 +105,10 @@ export const ShowreelModal: React.FC<ShowreelModalProps> = ({
           <div className="relative aspect-video w-full bg-black overflow-hidden group">
             <img
               src={posterUrl}
-              alt="Liz Kendi 2026 Master Motion Reel"
+              alt="Liz Kendi Showreel poster"
+              width={1280}
+              height={720}
+              loading="lazy"
               className="w-full h-full object-cover"
             />
 

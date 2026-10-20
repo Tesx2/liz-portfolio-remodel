@@ -11,6 +11,14 @@ try {
 
 const PUBLIC_MEDIA_URL_KEY = 'liz_kendi_public_media_url';
 
+export const getSiteUrl = (): string => {
+  const envUrl = (import.meta as any).env?.VITE_SITE_URL || (import.meta as any).env?.SITE_URL;
+  if (typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+  return 'https://lizkendiportfolio.netlify.app';
+};
+
 export const getPublicMediaBaseUrl = (): string => {
   const envUrl = (import.meta as any).env?.PUBLIC_MEDIA_BASE_URL;
   if (typeof envUrl === 'string' && envUrl.trim()) {

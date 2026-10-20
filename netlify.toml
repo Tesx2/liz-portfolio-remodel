@@ -2,14 +2,22 @@
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
+  edge_functions = "netlify/edge-functions"
 
 [build.environment]
   NODE_VERSION = "20"
+  SITE_URL = "https://lizkendiportfolio.netlify.app"
+  VITE_SITE_URL = "https://lizkendiportfolio.netlify.app"
 
-# SPA routing redirect for client-side navigation
+# Netlify Edge Function for per-project dynamic SEO metadata & crawler HTML
+[[edge_functions]]
+  path = "/work/*"
+  function = "project-meta"
+
+# Sitemap redirect to Netlify function
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from = "/sitemap.xml"
+  to = "/.netlify/functions/sitemap"
   status = 200
 
 # Legacy URL redirects to protect existing Google Search rankings
@@ -37,6 +45,12 @@
   from = "/testimonials.html"
   to = "/#testimonials"
   status = 301
+
+# SPA routing redirect for client-side navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 # Production security headers
 [[headers]]

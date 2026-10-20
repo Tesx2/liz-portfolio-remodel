@@ -32,6 +32,15 @@ export const handler = async (event) => {
     if (RESERVED_SLUGS.includes(cleanSlug)) {
       return errorResponse(`The project slug "${cleanSlug}" is reserved and cannot be used for a project.`, 400);
     }
+
+    if (rawProject.status === 'published') {
+      const missingAlt = (rawProject.assets || []).find(
+        (a) => !a.alt || !String(a.alt).trim()
+      );
+      if (missingAlt) {
+        return errorResponse('Alt text is required for every image before publishing a project.', 400);
+      }
+    }
     const now = new Date().toISOString();
 
     // Sanitize assets: store ONLY R2 object keys, strip any blob: or data: URIs

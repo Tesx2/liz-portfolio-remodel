@@ -52,13 +52,8 @@ export const ProjectGrid: React.FC<ProjectGridProps> = ({
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div>
-          <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
-            <span>Portfolio Archive</span>
-            <span aria-hidden="true">·</span>
-            <span>Cloudflare R2 Index</span>
-          </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
-            Selected Case Studies
+            Work
           </h2>
         </div>
 

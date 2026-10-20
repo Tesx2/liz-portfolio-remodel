@@ -9,9 +9,10 @@ interface HeroProps {
   siteContent?: SiteContent | null;
   onExploreWork: () => void;
   onOpenShowreelModal: () => void;
+  onContact?: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenShowreelModal }) => {
+export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenShowreelModal, onContact }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -24,7 +25,7 @@ export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenSh
     ? getMediaAssetUrl(siteContent.heroPosterKey)
     : siteContent?.showreelPosterKey
     ? getMediaAssetUrl(siteContent.showreelPosterKey)
-    : heroShowreelImg;
+    : '/hero-poster.jpg';
 
   // The hero must use only heroLoopKey, never the showreel file
   const heroLoopUrl = siteContent?.heroLoopKey
@@ -99,27 +100,17 @@ export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenSh
           {/* Left Column: Typographic Hierarchy */}
           <div className="lg:col-span-7 flex flex-col justify-between">
             <div>
-              {/* Quiet unboxed text kicker with hero portrait */}
-              <div className="flex items-center gap-2.5 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-5">
-                <img
-                  src={portraitUrl}
-                  alt="Liz Kendi"
-                  className="w-6 h-6 rounded-full object-cover border border-[#ca57bb]/40 shrink-0"
-                />
-                <span>Art Director & Motion Artist</span>
-                <span aria-hidden="true">·</span>
-                <span>Nairobi, Kenya</span>
-              </div>
-
-              {/* Headline with text-wrap balance */}
-              <h1 className="font-display text-4xl sm:text-6xl xl:text-7xl font-extrabold tracking-tight text-white leading-[1.05] mb-6 [text-wrap:balance]">
-                MOTION THAT <br className="hidden sm:inline" />
-                COMMANDS <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#f0c2ea] to-[#ca57bb]">ATTENTION.</span>
+              {/* Headline with single H1 */}
+              <h1 className="font-display text-4xl sm:text-6xl xl:text-7xl font-extrabold tracking-tight text-white leading-[1.05] mb-3">
+                Liz Kendi
               </h1>
+              <p className="font-mono text-sm sm:text-base text-[#ca57bb] font-semibold uppercase tracking-wider mb-5">
+                Graphic designer and animator
+              </p>
 
               {/* Lead copy */}
-              <p className="text-base sm:text-lg text-white/70 max-w-xl leading-relaxed mb-8 font-normal">
-                Synthesizing East African kinetic rhythm, architectural Swiss typography, and high-fidelity 3D procedural simulation for international cultural institutions, luxury brands, and forward-thinking enterprises.
+              <p className="text-base sm:text-lg text-white/80 max-w-xl leading-relaxed mb-8 font-normal">
+                I design brand visuals and make animations.
               </p>
             </div>
 
@@ -127,18 +118,27 @@ export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenSh
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
                 onClick={onExploreWork}
-                className="group flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-white bg-[#8a307f] hover:bg-[#9e3992] rounded-xl transition-all shadow-lg shadow-[#8a307f]/25 cursor-pointer"
+                className="group flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-white bg-[#8a307f] hover:bg-[#9e3992] rounded-xl transition-all cursor-pointer"
               >
-                <span>Explore Selected Works</span>
+                <span>View work</span>
                 <ArrowDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
               </button>
 
+              {onContact ? (
+                <button
+                  onClick={onContact}
+                  className="flex items-center gap-2 px-6 py-3.5 text-sm font-semibold text-white/90 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl transition-all cursor-pointer"
+                >
+                  <span>Contact me</span>
+                </button>
+              ) : null}
+
               <button
                 onClick={onOpenShowreelModal}
-                className="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-white/90 bg-white/[0.05] hover:bg-white/[0.09] border border-white/10 hover:border-white/20 rounded-xl transition-all cursor-pointer"
+                className="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-white/70 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-xl transition-all cursor-pointer"
               >
                 <Eye className="w-4 h-4 text-[#ca57bb]" />
-                <span>2026 Showreel (01:24)</span>
+                <span>Showreel</span>
               </button>
             </div>
           </div>
@@ -157,12 +157,17 @@ export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenSh
                   muted={isMuted}
                   playsInline
                   preload="metadata"
+                  width={600}
+                  height={450}
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                 />
               ) : (
                 <img
                   src={heroPosterUrl}
-                  alt="Liz Kendi 3D procedural fluid motion reel title sequence render"
+                  alt="Liz Kendi motion design showcase poster"
+                  width={600}
+                  height={450}
+                  fetchPriority="high"
                   className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${
                     isPlaying ? 'brightness-100' : 'brightness-75'
                   }`}

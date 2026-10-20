@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { ProjectIndexItem, SiteContent } from './types';
 import {
   fetchPublicProjectsIndex,
@@ -17,8 +17,13 @@ import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
 import { CaseStudyModal } from './components/CaseStudyModal';
 import { ShowreelModal } from './components/ShowreelModal';
-import { AdminLogin } from './components/admin/AdminLogin';
-import { AdminDashboard } from './components/admin/AdminDashboard';
+
+const AdminLogin = lazy(() =>
+  import('./components/admin/AdminLogin').then((m) => ({ default: m.AdminLogin }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
 
 export default function App() {
   const [publicProjects, setPublicProjects] = useState<ProjectIndexItem[]>([]);
@@ -155,10 +160,11 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {/* Split Screen Hero with Showreel and Metrics */}
+        {/* Split Screen Hero with Showreel */}
         <Hero
           siteContent={siteContent}
           onExploreWork={() => handleNavigate('work')}
+          onContact={() => handleNavigate('contact')}
           onOpenShowreelModal={() => setShowShowreel(true)}
         />
 
@@ -224,26 +230,32 @@ export default function App() {
       />
 
       {/* Admin Login Modal (Strict server authentication with cookie) */}
-      <AdminLogin
-        isOpen={showAdminLogin}
-        onClose={() => setShowAdminLogin(false)}
-        onLoginSuccess={handleLoginSuccess}
-      />
+      {showAdminLogin && (
+        <Suspense fallback={null}>
+          <AdminLogin
+            isOpen={showAdminLogin}
+            onClose={() => setShowAdminLogin(false)}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </Suspense>
+      )}
 
-      {/* Full Admin Dashboard & R2 Media Ingestion Suite */}
+      {/* Full Admin Dashboard */}
       {showAdminDashboard && (
-        <AdminDashboard
-          onLogout={handleLogout}
-          onClose={() => {
-            setShowAdminDashboard(false);
-            loadPublicGrid();
-            loadSiteContent();
-          }}
-          onPreviewProject={(slug) => {
-            setShowAdminDashboard(false);
-            handleOpenCaseStudy(slug);
-          }}
-        />
+        <Suspense fallback={null}>
+          <AdminDashboard
+            onLogout={handleLogout}
+            onClose={() => {
+              setShowAdminDashboard(false);
+              loadPublicGrid();
+              loadSiteContent();
+            }}
+            onPreviewProject={(slug) => {
+              setShowAdminDashboard(false);
+              handleOpenCaseStudy(slug);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -47,16 +47,11 @@ export const ContactSection: React.FC = () => {
           {/* Left Column: Direct Info & Studio Coordinates */}
           <div className="lg:col-span-5 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
-                <span>Start A Commission</span>
-                <span aria-hidden="true">·</span>
-                <span>Direct Inquiries</span>
-              </div>
               <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-6">
-                Let&rsquo;s craft your next visual benchmark.
+                Contact
               </h2>
               <p className="text-base text-white/70 leading-relaxed mb-8 font-normal">
-                Currently booking select commercial campaigns, brand identities, and 3D motion commissions for Q3/Q4. Reach out with your project parameters or schedule a studio call.
+                Get in touch for brand identity, illustration, or animation projects.
               </p>
             </div>
 

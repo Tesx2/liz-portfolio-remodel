@@ -49,7 +49,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onSelect, ind
             ) : (
               <img
                 src={thumbUrl}
-                alt={coverAsset.alt || project.title}
+                alt={coverAsset.alt || `${project.title} - ${project.category}`}
+                width={coverAsset.width || 800}
+                height={coverAsset.height || 600}
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 className={`w-full h-auto object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03] ${

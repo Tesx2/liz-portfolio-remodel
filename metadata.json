@@ -1,6 +1,6 @@
 {
-  "name": "Liz Kendi — Graphic Designer & Motion Artist Portfolio",
-  "description": "Behance and Awwwards-grade portfolio and media admin panel for Liz Kendi, Graphic Designer and Motion Graphic Artist in Kenya. Features curated showcase, case studies, motion reels, interactive category filters, and an S3/R2 direct-upload media admin suite.",
+  "name": "Liz Kendi | Graphic Designer and Animator in Nairobi, Kenya",
+  "description": "Portfolio of Liz Kendi, a graphic designer and animator in Nairobi, Kenya. Brand identity, illustration and 2D/3D animation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

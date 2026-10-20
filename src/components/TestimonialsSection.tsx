@@ -7,13 +7,8 @@ export const TestimonialsSection: React.FC = () => {
     <section id="testimonials" className="w-full py-20 lg:py-28 border-t border-white/[0.08] bg-[#0c0912]">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-2xl mb-16">
-          <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-2">
-            <span>Collaborator Voices</span>
-            <span aria-hidden="true">·</span>
-            <span>Client Endorsements</span>
-          </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
-            Trusted by creators & visionary brands.
+            What clients say
           </h2>
         </div>
 

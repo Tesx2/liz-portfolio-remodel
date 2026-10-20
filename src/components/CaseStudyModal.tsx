@@ -162,6 +162,9 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
                       <img
                         src={currentAssetUrl}
                         alt={currentAsset?.alt || project.title}
+                        width={currentAsset?.width || 1200}
+                        height={currentAsset?.height || 800}
+                        loading="lazy"
                         className="w-full h-auto max-h-[80vh] object-contain mx-auto"
                         referrerPolicy="no-referrer"
                       />
@@ -184,7 +187,10 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
                           >
                             <img
                               src={thumbSrc}
-                              alt={asset.alt}
+                              alt={asset.alt || `${project.title} thumbnail ${idx + 1}`}
+                              width={64}
+                              height={64}
+                              loading="lazy"
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
                             />
@@ -214,6 +220,9 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
                     <img
                       src={currentAssetUrl}
                       alt={currentAsset?.alt || project.title}
+                      width={currentAsset?.width || 1200}
+                      height={currentAsset?.height || 800}
+                      loading="lazy"
                       className="w-full h-auto max-h-[75vh] object-contain mx-auto"
                       referrerPolicy="no-referrer"
                     />
@@ -236,7 +245,10 @@ export const CaseStudyModal: React.FC<CaseStudyModalProps> = ({
                         >
                           <img
                             src={thumbSrc}
-                            alt={asset.alt}
+                            alt={asset.alt || `${project.title} thumbnail ${idx + 1}`}
+                            width={80}
+                            height={80}
+                            loading="lazy"
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"
                           />
