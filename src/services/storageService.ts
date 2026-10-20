@@ -1,4 +1,4 @@
-import { Project, ProjectAsset, ProjectIndexItem } from '../types';
+import { Project, ProjectAsset, ProjectIndexItem, SiteContent } from '../types';
 
 // Security Requirement: Delete any previously stored copies of R2 secrets or JWT tokens from localStorage on load
 try {
@@ -566,4 +566,44 @@ export const uploadFileMultipartToR2 = async (
     }).catch(() => {});
     throw err;
   }
+};
+
+/**
+ * Fetch global site content (portrait, showreel, video link) from Cloudflare R2
+ */
+export const fetchSiteContent = async (): Promise<SiteContent | null> => {
+  const base = getPublicMediaBaseUrl();
+  if (!base) return null;
+  const url = `${base}/content/site.json`;
+  try {
+    const res = await fetch(url, {
+      cache: 'no-cache',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Admin: Save global site content to content/site.json in R2
+ */
+export const saveSiteContentToR2 = async (
+  content: SiteContent
+): Promise<{ site: SiteContent }> => {
+  const res = await fetch('/.netlify/functions/save-site-content', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(content),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed saving site content: ${res.statusText}`);
+  }
+
+  return res.json();
 };

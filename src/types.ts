@@ -91,3 +91,13 @@ export interface ServiceItem {
 export interface PublicMediaSettings {
   publicMediaBaseUrl: string;
 }
+
+export interface SiteContent {
+  portraitKey?: string | null;
+  showreelKey?: string | null;
+  showreelPosterKey?: string | null;
+  showreelLink?: string;
+  heroLoopKey?: string | null;
+  heroPosterKey?: string | null;
+  updatedAt?: string;
+}

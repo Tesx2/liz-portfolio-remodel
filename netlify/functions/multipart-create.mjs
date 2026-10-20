@@ -44,14 +44,20 @@ export const handler = async (event) => {
       return errorResponse(`Unsupported content type: ${contentType}`, 400);
     }
 
-    // Max 2 GB for multipart
-    const MAX_MULTIPART_SIZE = 2 * 1024 * 1024 * 1024;
-    if (size && size > MAX_MULTIPART_SIZE) {
-      return errorResponse('File exceeds 2 GB limit', 400);
-    }
-
     const cleanSlug = projectSlug.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     const cleanAssetId = assetId.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+
+    const RESERVED_PROJECT_SLUGS = ['content', 'media', 'admin', 'api', 'new', 'work'];
+    if (RESERVED_PROJECT_SLUGS.includes(cleanSlug)) {
+      return errorResponse(`The project slug "${cleanSlug}" is reserved.`, 400);
+    }
+
+    // Limit site files (showreel) to 200 MB, other files to 2 GB
+    const maxAllowedSize = cleanSlug === 'site' ? 200 * 1024 * 1024 : 2 * 1024 * 1024 * 1024;
+    if (size && size > maxAllowedSize) {
+      return errorResponse(`File exceeds ${cleanSlug === 'site' ? '200 MB' : '2 GB'} limit`, 400);
+    }
+
     const ext = ALLOWED_CONTENT_TYPES[contentType] || 'bin';
     const key = `media/${cleanSlug}/${cleanAssetId}/original.${ext}`;
 

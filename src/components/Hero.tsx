@@ -1,15 +1,92 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, ArrowDown, Eye } from 'lucide-react';
 import heroShowreelImg from '../assets/images/liz_hero_showreel_poster_1792226915723.jpg';
+import lizPortraitImg from '../assets/images/liz_kendi_portrait_1792226932929.jpg';
+import { SiteContent } from '../types';
+import { getMediaAssetUrl } from '../services/storageService';
 
 interface HeroProps {
+  siteContent?: SiteContent | null;
   onExploreWork: () => void;
   onOpenShowreelModal: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onExploreWork, onOpenShowreelModal }) => {
+export const Hero: React.FC<HeroProps> = ({ siteContent, onExploreWork, onOpenShowreelModal }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const portraitUrl = siteContent?.portraitKey
+    ? getMediaAssetUrl(siteContent.portraitKey)
+    : lizPortraitImg;
+
+  const heroPosterUrl = siteContent?.heroPosterKey
+    ? getMediaAssetUrl(siteContent.heroPosterKey)
+    : siteContent?.showreelPosterKey
+    ? getMediaAssetUrl(siteContent.showreelPosterKey)
+    : heroShowreelImg;
+
+  // The hero must use only heroLoopKey, never the showreel file
+  const heroLoopUrl = siteContent?.heroLoopKey
+    ? getMediaAssetUrl(siteContent.heroLoopKey)
+    : null;
+
+  const [canLoadVideo, setCanLoadVideo] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isSaveData = Boolean((navigator as any)?.connection?.saveData);
+    const isUnder768 = window.innerWidth < 768;
+    return !prefersReducedMotion && !isSaveData && !isUnder768;
+  });
+
+  useEffect(() => {
+    const checkConditions = () => {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const isSaveData = Boolean((navigator as any)?.connection?.saveData);
+      const isUnder768 = window.innerWidth < 768;
+      setCanLoadVideo(!prefersReducedMotion && !isSaveData && !isUnder768);
+    };
+
+    checkConditions();
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    motionQuery.addEventListener?.('change', checkConditions);
+    window.addEventListener('resize', checkConditions);
+
+    return () => {
+      motionQuery.removeEventListener?.('change', checkConditions);
+      window.removeEventListener('resize', checkConditions);
+    };
+  }, []);
+
+  const shouldLoadVideo = Boolean(canLoadVideo && heroLoopUrl);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+    }
+    setIsMuted(!isMuted);
+  };
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+      if (isPlaying) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [shouldLoadVideo, heroLoopUrl]);
 
   return (
     <section className="relative w-full pt-12 pb-16 lg:pt-20 lg:pb-24 border-b border-white/[0.06] overflow-hidden">
@@ -22,8 +99,13 @@ export const Hero: React.FC<HeroProps> = ({ onExploreWork, onOpenShowreelModal }
           {/* Left Column: Typographic Hierarchy */}
           <div className="lg:col-span-7 flex flex-col justify-between">
             <div>
-              {/* Quiet unboxed text kicker */}
-              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-5">
+              {/* Quiet unboxed text kicker with hero portrait */}
+              <div className="flex items-center gap-2.5 text-xs font-mono tracking-widest text-[#ca57bb] uppercase mb-5">
+                <img
+                  src={portraitUrl}
+                  alt="Liz Kendi"
+                  className="w-6 h-6 rounded-full object-cover border border-[#ca57bb]/40 shrink-0"
+                />
                 <span>Art Director & Motion Artist</span>
                 <span aria-hidden="true">·</span>
                 <span>Nairobi, Kenya</span>
@@ -64,15 +146,29 @@ export const Hero: React.FC<HeroProps> = ({ onExploreWork, onOpenShowreelModal }
           {/* Right Column: Hero Visual Container at Matching Height */}
           <div className="lg:col-span-5 flex flex-col justify-center">
             <div className="group relative w-full h-[380px] sm:h-[460px] lg:h-full min-h-[380px] rounded-2xl overflow-hidden border border-white/10 bg-[#14101b] shadow-2xl">
-              {/* Media Image / Showreel backdrop */}
-              <img
-                src={heroShowreelImg}
-                alt="Liz Kendi 3D procedural fluid motion reel title sequence render"
-                className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${
-                  isPlaying ? 'brightness-100' : 'brightness-75'
-                }`}
-                referrerPolicy="no-referrer"
-              />
+              {/* Media Image / Hero Loop backdrop */}
+              {shouldLoadVideo ? (
+                <video
+                  ref={videoRef}
+                  src={heroLoopUrl!}
+                  poster={heroPosterUrl}
+                  autoPlay
+                  loop
+                  muted={isMuted}
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                />
+              ) : (
+                <img
+                  src={heroPosterUrl}
+                  alt="Liz Kendi 3D procedural fluid motion reel title sequence render"
+                  className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${
+                    isPlaying ? 'brightness-100' : 'brightness-75'
+                  }`}
+                  referrerPolicy="no-referrer"
+                />
+              )}
 
               {/* Scrim overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
@@ -81,14 +177,14 @@ export const Hero: React.FC<HeroProps> = ({ onExploreWork, onOpenShowreelModal }
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-20">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsPlaying(!isPlaying)}
+                    onClick={togglePlay}
                     className="p-2.5 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-md text-white border border-white/10 transition-colors cursor-pointer"
                     aria-label={isPlaying ? 'Pause Showreel' : 'Play Showreel'}
                   >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </button>
                   <button
-                    onClick={() => setIsMuted(!isMuted)}
+                    onClick={toggleMute}
                     className="p-2.5 rounded-lg bg-black/60 hover:bg-black/80 backdrop-blur-md text-white border border-white/10 transition-colors cursor-pointer"
                     aria-label={isMuted ? 'Unmute Audio' : 'Mute Audio'}
                   >

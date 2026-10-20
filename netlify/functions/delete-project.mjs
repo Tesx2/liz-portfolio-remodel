@@ -27,9 +27,21 @@ export const handler = async (event) => {
   }
 
   try {
-    const { slug } = JSON.parse(event.body || '{}');
-    if (!slug) {
+    const rawSlug = JSON.parse(event.body || '{}').slug;
+    if (!rawSlug) {
       return errorResponse('Project slug is required', 400);
+    }
+
+    const cleanSlug = String(rawSlug).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const RESERVED_SLUGS = ['site', 'content', 'media', 'admin', 'api', 'new', 'work'];
+    if (RESERVED_SLUGS.includes(cleanSlug)) {
+      return errorResponse(`The project slug "${cleanSlug}" is reserved and cannot be deleted as a project.`, 400);
+    }
+
+    // Safety guard: delete-project must NEVER touch media/site/
+    const mediaPrefix = `media/${cleanSlug}/`;
+    if (cleanSlug === 'site' || mediaPrefix.startsWith('media/site/')) {
+      return errorResponse('Forbidden: cannot touch protected site assets', 403);
     }
 
     const s3 = getR2Client();
@@ -39,21 +51,21 @@ export const handler = async (event) => {
     await s3.send(
       new DeleteObjectCommand({
         Bucket: bucket,
-        Key: `content/projects/${slug}.json`,
+        Key: `content/projects/${cleanSlug}.json`,
       })
     );
 
-    // 2. Delete media folder under media/<slug>/
+    // 2. Delete media folder under media/<cleanSlug>/
     const mediaList = await s3.send(
       new ListObjectsV2Command({
         Bucket: bucket,
-        Prefix: `media/${slug}/`,
+        Prefix: mediaPrefix,
       })
     );
 
     if (mediaList.Contents) {
       for (const item of mediaList.Contents) {
-        if (item.Key) {
+        if (item.Key && !item.Key.startsWith('media/site/')) {
           try {
             await s3.send(
               new DeleteObjectCommand({

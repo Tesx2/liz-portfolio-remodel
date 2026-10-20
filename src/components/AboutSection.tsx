@@ -1,12 +1,19 @@
 import React from 'react';
 import { ArrowUpRight, Award, Compass, Film, Layers } from 'lucide-react';
 import lizPortraitImg from '../assets/images/liz_kendi_portrait_1792226932929.jpg';
+import { SiteContent } from '../types';
+import { getMediaAssetUrl } from '../services/storageService';
 
 interface AboutSectionProps {
+  siteContent?: SiteContent | null;
   onContact: () => void;
 }
 
-export const AboutSection: React.FC<AboutSectionProps> = ({ onContact }) => {
+export const AboutSection: React.FC<AboutSectionProps> = ({ siteContent, onContact }) => {
+  const portraitUrl = siteContent?.portraitKey
+    ? getMediaAssetUrl(siteContent.portraitKey)
+    : lizPortraitImg;
+
   const tools = [
     { name: 'Cinema 4D & Octane', category: '3D Simulation' },
     { name: 'Adobe After Effects', category: 'Motion & Compositing' },
@@ -44,7 +51,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onContact }) => {
           <div className="lg:col-span-5">
             <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#16121f] shadow-2xl">
               <img
-                src={lizPortraitImg}
+                src={portraitUrl}
                 alt="Liz Kendi, Graphic Designer and Motion Artist in Nairobi, Kenya"
                 className="w-full h-auto object-cover"
                 referrerPolicy="no-referrer"

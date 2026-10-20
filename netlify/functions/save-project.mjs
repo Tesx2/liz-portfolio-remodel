@@ -28,6 +28,10 @@ export const handler = async (event) => {
     }
 
     const cleanSlug = rawProject.slug.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const RESERVED_SLUGS = ['site', 'content', 'media', 'admin', 'api', 'new', 'work'];
+    if (RESERVED_SLUGS.includes(cleanSlug)) {
+      return errorResponse(`The project slug "${cleanSlug}" is reserved and cannot be used for a project.`, 400);
+    }
     const now = new Date().toISOString();
 
     // Sanitize assets: store ONLY R2 object keys, strip any blob: or data: URIs

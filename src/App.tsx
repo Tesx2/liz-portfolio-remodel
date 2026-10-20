@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ProjectIndexItem } from './types';
+import { ProjectIndexItem, SiteContent } from './types';
 import {
   fetchPublicProjectsIndex,
+  fetchSiteContent,
   checkAdminSession,
   logoutAdminSession,
 } from './services/storageService';
@@ -21,6 +22,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 
 export default function App() {
   const [publicProjects, setPublicProjects] = useState<ProjectIndexItem[]>([]);
+  const [siteContent, setSiteContent] = useState<SiteContent | null>(null);
   const [isLoadingGrid, setIsLoadingGrid] = useState<boolean>(true);
   const [gridError, setGridError] = useState<string | null>(null);
 
@@ -54,9 +56,22 @@ export default function App() {
     }
   }, []);
 
+  // Load global site content from Cloudflare R2: /content/site.json
+  const loadSiteContent = useCallback(async () => {
+    try {
+      const data = await fetchSiteContent();
+      if (data) {
+        setSiteContent(data);
+      }
+    } catch {
+      // Fallback to built-in images
+    }
+  }, []);
+
   // History API routing: support direct URLs /work/<slug>
   useEffect(() => {
     loadPublicGrid();
+    loadSiteContent();
 
     // Check if user is signed into admin via HttpOnly cookie
     checkAdminSession().then((authenticated) => {
@@ -142,6 +157,7 @@ export default function App() {
       <main className="flex-1">
         {/* Split Screen Hero with Showreel and Metrics */}
         <Hero
+          siteContent={siteContent}
           onExploreWork={() => handleNavigate('work')}
           onOpenShowreelModal={() => setShowShowreel(true)}
         />
@@ -163,7 +179,10 @@ export default function App() {
         <MarqueeStrip />
 
         {/* About & Studio Ethos Section */}
-        <AboutSection onContact={() => handleNavigate('contact')} />
+        <AboutSection
+          siteContent={siteContent}
+          onContact={() => handleNavigate('contact')}
+        />
 
         {/* Capabilities & Deliverables */}
         <ServicesSection onContact={() => handleNavigate('contact')} />
@@ -196,6 +215,7 @@ export default function App() {
       {/* Fullscreen 4K Showreel Player Modal */}
       <ShowreelModal
         isOpen={showShowreel}
+        siteContent={siteContent}
         onClose={() => setShowShowreel(false)}
         onExploreWork={() => {
           setShowShowreel(false);
@@ -217,6 +237,7 @@ export default function App() {
           onClose={() => {
             setShowAdminDashboard(false);
             loadPublicGrid();
+            loadSiteContent();
           }}
           onPreviewProject={(slug) => {
             setShowAdminDashboard(false);

@@ -55,6 +55,11 @@ export const handler = async (event) => {
       return errorResponse('Invalid slug or assetId', 400);
     }
 
+    const RESERVED_PROJECT_SLUGS = ['content', 'media', 'admin', 'api', 'new', 'work'];
+    if (RESERVED_PROJECT_SLUGS.includes(cleanSlug)) {
+      return errorResponse(`The project slug "${cleanSlug}" is reserved.`, 400);
+    }
+
     if (!ALLOWED_CONTENT_TYPES[contentType]) {
       return errorResponse(`Disallowed content type: ${contentType}`, 400);
     }
