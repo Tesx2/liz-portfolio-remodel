@@ -69,23 +69,54 @@ export interface ProjectIndexItem {
   updatedAt: string;
 }
 
+export interface AboutTool {
+  name: string;
+  category: string;
+}
+
+export interface AboutMilestone {
+  year: string;
+  title: string;
+  place: string;
+}
+
+export interface AboutContent {
+  title?: string;
+  roleTitle?: string;
+  location?: string;
+  bioParagraphs: string[];
+  cvDownloadUrl?: string;
+  tools: AboutTool[];
+  milestones: AboutMilestone[];
+}
+
 export interface Testimonial {
   id: string;
   quote: string;
   clientName: string;
   role: string;
   company: string;
-  project: string;
-  location: string;
+  project?: string;
+  location?: string;
+  imageKey?: string | null;
+  imageUrl?: string | null;
+  visible?: boolean;
+  sortOrder?: number;
 }
 
 export interface ServiceItem {
+  id?: string;
   number: string;
   title: string;
   category: string;
   description: string;
   deliverables: string[];
   timeline: string;
+  imageKey?: string | null;
+  imageUrl?: string | null;
+  iconName?: string;
+  visible?: boolean;
+  sortOrder?: number;
 }
 
 export interface PublicMediaSettings {
@@ -99,5 +130,8 @@ export interface SiteContent {
   showreelLink?: string;
   heroLoopKey?: string | null;
   heroPosterKey?: string | null;
+  about?: AboutContent | null;
+  services?: ServiceItem[] | null;
+  testimonials?: Testimonial[] | null;
   updatedAt?: string;
 }

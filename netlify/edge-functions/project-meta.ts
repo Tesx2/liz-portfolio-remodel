@@ -1,3 +1,5 @@
+declare const Deno: any;
+
 function escapeHtml(str: any): string {
   if (str === null || str === undefined) return '';
   return String(str)

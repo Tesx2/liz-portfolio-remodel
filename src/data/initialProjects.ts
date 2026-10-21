@@ -1,9 +1,34 @@
-import { Testimonial, ServiceItem } from '../types';
+import { Testimonial, ServiceItem, AboutContent } from '../types';
 
 import heroShowreelImg from '../assets/images/liz_hero_showreel_poster_1792226915723.jpg';
 import lizPortraitImg from '../assets/images/liz_kendi_portrait_1792226932929.jpg';
 
 export { lizPortraitImg, heroShowreelImg };
+
+export const INITIAL_ABOUT: AboutContent = {
+  title: 'About me',
+  roleTitle: 'Graphic designer and animator',
+  location: 'Nairobi, KE',
+  bioParagraphs: [
+    'I am a graphic designer and animator based in Nairobi, Kenya, with 2 years of experience.',
+    'I hold a Diploma in Animation and Graphic Design from Kenya Institute of Mass Communication (2021 to 2024), and completed a graphic design internship at Kenneth Lamu Marketing Communication from May to July 2023.',
+    'I speak English and Kiswahili. When I am not animating or designing, I enjoy drawing, singing, travelling, and reading novels.',
+  ],
+  cvDownloadUrl: '/liz-kendi-cv.pdf',
+  tools: [
+    { name: 'Adobe After Effects', category: 'Animation & Motion' },
+    { name: 'Adobe Photoshop', category: 'Design & Texturing' },
+    { name: 'Adobe Illustrator', category: 'Vector & Identity' },
+    { name: 'Premiere Pro', category: 'Video Editing' },
+    { name: 'Adobe Animate', category: '2D Animation' },
+    { name: 'Maya', category: '3D Animation' },
+    { name: '3ds Max', category: '3D Modeling' },
+  ],
+  milestones: [
+    { year: '2021 – 2024', title: 'Diploma in Animation and Graphic Design', place: 'Kenya Institute of Mass Communication' },
+    { year: 'May – Jul 2023', title: 'Graphic Design Internship', place: 'Kenneth Lamu Marketing Communication' },
+  ],
+};
 
 // TODO: Confirm testimonials with Liz before publishing live
 export const TESTIMONIALS: Testimonial[] = [

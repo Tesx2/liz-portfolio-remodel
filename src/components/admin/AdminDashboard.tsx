@@ -31,9 +31,17 @@ import {
   User,
   Link as LinkIcon,
   Play,
+  Briefcase,
+  MessageSquareQuote,
+  Sparkles,
 } from 'lucide-react';
 import lizPortraitFallback from '../../assets/images/liz_kendi_portrait_1792226932929.jpg';
 import showreelFallback from '../../assets/images/liz_hero_showreel_poster_1792226915723.jpg';
+import { AboutContentEditor } from './AboutContentEditor';
+import { ServicesContentEditor } from './ServicesContentEditor';
+import { TestimonialsContentEditor } from './TestimonialsContentEditor';
+import { INITIAL_ABOUT, SERVICES, TESTIMONIALS } from '../../data/initialProjects';
+import { AboutContent, ServiceItem, Testimonial } from '../../types';
 
 interface FileUploadTask {
   id: string;
@@ -59,6 +67,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'projects' | 'site-content' | 'editor'>('projects');
+  const [siteContentSubTab, setSiteContentSubTab] = useState<
+    'media' | 'about' | 'services' | 'testimonials'
+  >('media');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -745,6 +756,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleSaveAboutContent = async (updatedAbout: AboutContent) => {
+    const updatedSite: SiteContent = {
+      ...siteContent,
+      about: updatedAbout,
+    };
+    setSiteContent(updatedSite);
+    await saveSiteContentToR2(updatedSite);
+  };
+
+  const handleSaveServicesContent = async (updatedServices: ServiceItem[]) => {
+    const updatedSite: ServiceItem[] = updatedServices;
+    const updatedSiteContent: SiteContent = {
+      ...siteContent,
+      services: updatedSite,
+    };
+    setSiteContent(updatedSiteContent);
+    await saveSiteContentToR2(updatedSiteContent);
+  };
+
+  const handleSaveTestimonialsContent = async (updatedTestimonials: Testimonial[]) => {
+    const updatedSite: Testimonial[] = updatedTestimonials;
+    const updatedSiteContent: SiteContent = {
+      ...siteContent,
+      testimonials: updatedSite,
+    };
+    setSiteContent(updatedSiteContent);
+    await saveSiteContentToR2(updatedSiteContent);
+  };
+
   const filteredProjects = projects.filter((p) => {
     const matchesCat = filterCategory === 'all' || p.category === filterCategory;
     const matchesQ =
@@ -1101,239 +1141,331 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* ================= TAB 2: SITE CONTENT ================= */}
         {activeTab === 'site-content' && (
-          <form onSubmit={handleSaveSiteContent} className="max-w-3xl mx-auto space-y-8">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h2 className="font-display text-2xl font-bold">Site content</h2>
-              <button
-                type="submit"
-                disabled={isSavingSiteContent}
-                className="min-h-[44px] flex items-center gap-2 px-6 py-2.5 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                {isSavingSiteContent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Save</span>
-              </button>
-            </div>
-
-            {/* 1. Portrait Photo */}
-            <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-4">
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <User className="w-4 h-4 text-[#ca57bb]" />
-                <span>Portrait photo</span>
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Sub-tab navigation pills */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/10 gap-4">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-white">Site Content</h2>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Manage hero media, personal bio & skills, services, and client testimonials.
+                </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="w-32 h-32 rounded-2xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
-                  <img
-                    src={
-                      portraitPreview ||
-                      (siteContent.portraitKey ? getMediaAssetUrl(siteContent.portraitKey) : lizPortraitFallback)
-                    }
-                    alt="Liz Kendi Portrait"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+              <div className="flex items-center p-1 bg-[#1a1524] rounded-xl border border-white/10 text-xs overflow-x-auto max-w-full">
+                <button
+                  type="button"
+                  onClick={() => setSiteContentSubTab('media')}
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    siteContentSubTab === 'media'
+                      ? 'bg-[#8a307f] text-white font-medium shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  <span>Media & Reel</span>
+                </button>
 
-                <div className="space-y-2 text-center sm:text-left">
-                  <input
-                    type="file"
-                    ref={portraitInputRef}
-                    onChange={handlePortraitUpload}
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={isUploadingPortrait}
-                    onClick={() => portraitInputRef.current?.click()}
-                    className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-2"
-                  >
-                    {isUploadingPortrait && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <span>{isUploadingPortrait ? 'Uploading photo...' : 'Replace photo'}</span>
-                  </button>
-                  <p className="text-[11px] text-white/50">Upload a JPG, PNG or WebP image.</p>
-                </div>
-              </div>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setSiteContentSubTab('about')}
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    siteContentSubTab === 'about'
+                      ? 'bg-[#8a307f] text-white font-medium shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>About Me</span>
+                </button>
 
-            {/* 2. Hero Background Loop */}
-            <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-4">
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <Play className="w-4 h-4 text-[#ca57bb]" />
-                <span>Hero background loop</span>
-              </div>
-              <p className="text-xs text-white/60">
-                A short silent loop, about 10 to 15 seconds.
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setSiteContentSubTab('services')}
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    siteContentSubTab === 'services'
+                      ? 'bg-[#8a307f] text-white font-medium shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span>Services</span>
+                </button>
 
-              <div className="space-y-4">
-                <div className="aspect-video w-full max-w-md rounded-xl overflow-hidden bg-black/50 border border-white/10 relative">
-                  {(siteContent.heroLoopKey || heroLoopBlobUrl) ? (
-                    <video
-                      src={heroLoopBlobUrl || (siteContent.heroLoopKey ? getMediaAssetUrl(siteContent.heroLoopKey) : '')}
-                      poster={
-                        heroPosterPreview ||
-                        (siteContent.heroPosterKey ? getMediaAssetUrl(siteContent.heroPosterKey) : showreelFallback)
-                      }
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={
-                        heroPosterPreview ||
-                        (siteContent.heroPosterKey ? getMediaAssetUrl(siteContent.heroPosterKey) : showreelFallback)
-                      }
-                      alt="Hero background loop preview"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <input
-                    type="file"
-                    ref={heroLoopInputRef}
-                    onChange={handleHeroLoopUpload}
-                    accept="video/mp4,video/webm"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={isUploadingHeroLoop}
-                    onClick={() => heroLoopInputRef.current?.click()}
-                    className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
-                  >
-                    {isUploadingHeroLoop && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <span>{isUploadingHeroLoop ? 'Uploading loop...' : 'Replace loop'}</span>
-                  </button>
-                  <span className="text-[11px] text-white/50">MP4 or WebM only, max 25 MB, up to 20 seconds.</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSiteContentSubTab('testimonials')}
+                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    siteContentSubTab === 'testimonials'
+                      ? 'bg-[#8a307f] text-white font-medium shadow-sm'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  <MessageSquareQuote className="w-3.5 h-3.5" />
+                  <span>Testimonials</span>
+                </button>
               </div>
             </div>
 
-            {/* 3. Showreel Video */}
-            <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-5">
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <Film className="w-4 h-4 text-[#ca57bb]" />
-                <span>Showreel video</span>
-              </div>
+            {/* Sub-tab 1: Media & Reel */}
+            {siteContentSubTab === 'media' && (
+              <form onSubmit={handleSaveSiteContent} className="space-y-8">
+                {/* 1. Portrait Photo */}
+                <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-4">
+                  <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                    <User className="w-4 h-4 text-[#ca57bb]" />
+                    <span>Portrait photo</span>
+                  </div>
 
-              <div className="space-y-4">
-                <div className="aspect-video w-full rounded-xl overflow-hidden bg-black/50 border border-white/10 relative">
-                  {(siteContent.showreelKey || videoBlobUrl) ? (
-                    <video
-                      ref={videoPlayerRef}
-                      src={videoBlobUrl || (siteContent.showreelKey ? getMediaAssetUrl(siteContent.showreelKey) : '')}
-                      poster={
-                        showreelPosterPreview ||
-                        (siteContent.showreelPosterKey ? getMediaAssetUrl(siteContent.showreelPosterKey) : showreelFallback)
-                      }
-                      controls
-                      playsInline
-                      crossOrigin="anonymous"
-                      onLoadedMetadata={(e) => {
-                        const dur = e.currentTarget.duration;
-                        if (dur && !isNaN(dur) && isFinite(dur)) {
-                          setVideoDuration(dur);
+                  <div className="flex flex-col sm:flex-row items-center gap-6">
+                    <div className="w-32 h-32 rounded-2xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                      <img
+                        src={
+                          portraitPreview ||
+                          (siteContent.portraitKey ? getMediaAssetUrl(siteContent.portraitKey) : lizPortraitFallback)
                         }
-                      }}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={showreelPosterPreview || showreelFallback}
-                      alt="Showreel Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
+                        alt="Liz Kendi Portrait"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <input
-                    type="file"
-                    ref={showreelInputRef}
-                    onChange={handleShowreelUpload}
-                    accept="video/mp4,video/webm"
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    disabled={isUploadingShowreel}
-                    onClick={() => showreelInputRef.current?.click()}
-                    className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
-                  >
-                    {isUploadingShowreel && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <span>{isUploadingShowreel ? 'Uploading showreel...' : 'Replace showreel'}</span>
-                  </button>
-                  <span className="text-[11px] text-white/50">MP4 or WebM up to 200 MB.</span>
-                </div>
-
-                {/* Poster Frame Picker Slider */}
-                {(siteContent.showreelKey || videoBlobUrl) && (
-                  <div className="pt-4 border-t border-white/10 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/70 font-medium">
-                        Choose poster frame: {formatSeconds(currentTimeSlider)} / {formatSeconds(videoDuration)}
-                      </span>
+                    <div className="space-y-2 text-center sm:text-left">
+                      <input
+                        type="file"
+                        ref={portraitInputRef}
+                        onChange={handlePortraitUpload}
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                      />
                       <button
                         type="button"
-                        disabled={isCapturingPoster}
-                        onClick={captureFrameFromVideo}
-                        className="px-3 py-1 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded text-xs cursor-pointer font-medium disabled:opacity-50 flex items-center gap-1.5"
+                        disabled={isUploadingPortrait}
+                        onClick={() => portraitInputRef.current?.click()}
+                        className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors flex items-center gap-2"
                       >
-                        {isCapturingPoster && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                        <span>Capture this frame as poster</span>
+                        {isUploadingPortrait && <Loader2 className="w-4 h-4 animate-spin" />}
+                        <span>{isUploadingPortrait ? 'Uploading photo...' : 'Replace photo'}</span>
                       </button>
+                      <p className="text-[11px] text-white/50">Upload a JPG, PNG or WebP image.</p>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max={videoDuration || 60}
-                      step="0.1"
-                      value={currentTimeSlider}
-                      onChange={(e) => handleSeekFrame(parseFloat(e.target.value))}
-                      className="w-full accent-[#8a307f] cursor-pointer"
-                    />
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
 
-            {/* 4. Showreel Link (Optional) */}
-            <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-3">
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <LinkIcon className="w-4 h-4 text-[#ca57bb]" />
-                <span>Showreel link (optional)</span>
-              </div>
-              <input
-                type="url"
-                ref={showreelLinkInputRef}
-                placeholder="https://vimeo.com/... or https://youtube.com/..."
-                value={siteContent.showreelLink || ''}
-                onChange={(e) =>
-                  setSiteContent({ ...siteContent, showreelLink: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#8a307f] min-h-[44px]"
+                {/* 2. Hero Background Loop */}
+                <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-4">
+                  <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                    <Play className="w-4 h-4 text-[#ca57bb]" />
+                    <span>Hero background loop</span>
+                  </div>
+                  <p className="text-xs text-white/60">
+                    A short silent loop, about 10 to 15 seconds.
+                  </p>
+
+                  <div className="space-y-4">
+                    <div className="aspect-video w-full max-w-md rounded-xl overflow-hidden bg-black/50 border border-white/10 relative">
+                      {(siteContent.heroLoopKey || heroLoopBlobUrl) ? (
+                        <video
+                          src={heroLoopBlobUrl || (siteContent.heroLoopKey ? getMediaAssetUrl(siteContent.heroLoopKey) : '')}
+                          poster={
+                            heroPosterPreview ||
+                            (siteContent.heroPosterKey ? getMediaAssetUrl(siteContent.heroPosterKey) : showreelFallback)
+                          }
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={
+                            heroPosterPreview ||
+                            (siteContent.heroPosterKey ? getMediaAssetUrl(siteContent.heroPosterKey) : showreelFallback)
+                          }
+                          alt="Hero background loop preview"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <input
+                        type="file"
+                        ref={heroLoopInputRef}
+                        onChange={handleHeroLoopUpload}
+                        accept="video/mp4,video/webm"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingHeroLoop}
+                        onClick={() => heroLoopInputRef.current?.click()}
+                        className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
+                      >
+                        {isUploadingHeroLoop && <Loader2 className="w-4 h-4 animate-spin" />}
+                        <span>{isUploadingHeroLoop ? 'Uploading loop...' : 'Replace loop'}</span>
+                      </button>
+                      <span className="text-[11px] text-white/50">MP4 or WebM only, max 25 MB, up to 20 seconds.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Showreel Video */}
+                <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-5">
+                  <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                    <Film className="w-4 h-4 text-[#ca57bb]" />
+                    <span>Showreel video</span>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="aspect-video w-full rounded-xl overflow-hidden bg-black/50 border border-white/10 relative">
+                      {(siteContent.showreelKey || videoBlobUrl) ? (
+                        <video
+                          ref={videoPlayerRef}
+                          src={videoBlobUrl || (siteContent.showreelKey ? getMediaAssetUrl(siteContent.showreelKey) : '')}
+                          poster={
+                            showreelPosterPreview ||
+                            (siteContent.showreelPosterKey ? getMediaAssetUrl(siteContent.showreelPosterKey) : showreelFallback)
+                          }
+                          controls
+                          playsInline
+                          crossOrigin="anonymous"
+                          onLoadedMetadata={(e) => {
+                            const dur = e.currentTarget.duration;
+                            if (dur && !isNaN(dur) && isFinite(dur)) {
+                              setVideoDuration(dur);
+                            }
+                          }}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={showreelPosterPreview || showreelFallback}
+                          alt="Showreel Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <input
+                        type="file"
+                        ref={showreelInputRef}
+                        onChange={handleShowreelUpload}
+                        accept="video/mp4,video/webm"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingShowreel}
+                        onClick={() => showreelInputRef.current?.click()}
+                        className="min-h-[44px] px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
+                      >
+                        {isUploadingShowreel && <Loader2 className="w-4 h-4 animate-spin" />}
+                        <span>{isUploadingShowreel ? 'Uploading showreel...' : 'Replace showreel'}</span>
+                      </button>
+                      <span className="text-[11px] text-white/50">MP4 or WebM up to 200 MB.</span>
+                    </div>
+
+                    {/* Poster Frame Picker Slider */}
+                    {(siteContent.showreelKey || videoBlobUrl) && (
+                      <div className="pt-4 border-t border-white/10 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-white/70 font-medium">
+                            Choose poster frame: {formatSeconds(currentTimeSlider)} / {formatSeconds(videoDuration)}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isCapturingPoster}
+                            onClick={captureFrameFromVideo}
+                            className="px-3 py-1 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded text-xs cursor-pointer font-medium disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {isCapturingPoster && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <span>Capture this frame as poster</span>
+                          </button>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max={videoDuration || 60}
+                          step="0.1"
+                          value={currentTimeSlider}
+                          onChange={(e) => handleSeekFrame(parseFloat(e.target.value))}
+                          className="w-full accent-[#8a307f] cursor-pointer"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Showreel Link (Optional) */}
+                <div className="p-6 rounded-2xl bg-[#14101c] border border-white/10 space-y-3">
+                  <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                    <LinkIcon className="w-4 h-4 text-[#ca57bb]" />
+                    <span>Showreel link (optional)</span>
+                  </div>
+                  <input
+                    type="url"
+                    ref={showreelLinkInputRef}
+                    placeholder="https://vimeo.com/... or https://youtube.com/..."
+                    value={siteContent.showreelLink || ''}
+                    onChange={(e) =>
+                      setSiteContent({ ...siteContent, showreelLink: e.target.value })
+                    }
+                    className="w-full px-4 py-2.5 bg-[#0b0811] border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-[#8a307f] min-h-[44px]"
+                  />
+                  <p className="text-[11px] text-white/50">
+                    If filled in, the public site plays this instead of the uploaded file.
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSavingSiteContent}
+                    className="min-h-[44px] flex items-center gap-2 px-6 py-2.5 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {isSavingSiteContent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Save Media & Reel</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Sub-tab 2: About Me */}
+            {siteContentSubTab === 'about' && (
+              <AboutContentEditor
+                initialAbout={siteContent.about || INITIAL_ABOUT}
+                onSave={handleSaveAboutContent}
+                showToast={showToast}
               />
-              <p className="text-[11px] text-white/50">
-                If filled in, the public site plays this instead of the uploaded file.
-              </p>
-            </div>
+            )}
 
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={isSavingSiteContent}
-                className="min-h-[44px] flex items-center gap-2 px-6 py-2.5 bg-[#8a307f] hover:bg-[#9e3992] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                {isSavingSiteContent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Save</span>
-              </button>
-            </div>
-          </form>
+            {/* Sub-tab 3: Services */}
+            {siteContentSubTab === 'services' && (
+              <ServicesContentEditor
+                initialServices={
+                  Array.isArray(siteContent.services) && siteContent.services.length > 0
+                    ? siteContent.services
+                    : SERVICES
+                }
+                onSave={handleSaveServicesContent}
+                showToast={showToast}
+              />
+            )}
+
+            {/* Sub-tab 4: Testimonials */}
+            {siteContentSubTab === 'testimonials' && (
+              <TestimonialsContentEditor
+                initialTestimonials={
+                  Array.isArray(siteContent.testimonials) && siteContent.testimonials.length > 0
+                    ? siteContent.testimonials
+                    : TESTIMONIALS
+                }
+                onSave={handleSaveTestimonialsContent}
+                showToast={showToast}
+              />
+            )}
+          </div>
         )}
 
         {/* ================= TAB 3: PROJECT EDITOR ================= */}

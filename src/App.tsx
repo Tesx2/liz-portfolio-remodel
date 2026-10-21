@@ -191,10 +191,13 @@ export default function App() {
         />
 
         {/* Capabilities & Deliverables */}
-        <ServicesSection onContact={() => handleNavigate('contact')} />
+        <ServicesSection
+          siteContent={siteContent}
+          onContact={() => handleNavigate('contact')}
+        />
 
         {/* Client Testimonials */}
-        <TestimonialsSection />
+        <TestimonialsSection siteContent={siteContent} />
 
         {/* Contact Inquiry Section */}
         <ContactSection />
